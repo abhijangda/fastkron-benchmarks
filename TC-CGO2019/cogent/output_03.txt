@@ -1,0 +1,29 @@
+==33824== NVPROF is profiling process 33824, command: ./k_tccg_03 72 72 24 72 72
+==========================================================================================================
+>>> abcd-dbea-ec
+>>> t3 [a,16,b,16,c,16,d,16] += sum(e,16) * t2 [d,b,e,a] * v2 [e,c];
+>>> Problem Size (a,b,c,d) and (e): (72,72,24,72) and (72)
+==========================================================================================================
+========================================= fusedKernels =============================================
+		Grid Size  :   5832 (1D)
+		Block-size :  8, 16 (2D)
+		Reg.-size  :  8,  4 (2D)
+		A thread deals with (64 x 64) elements (basically)
+		# of Operations: 1289945088
+====================================================================================================
+External: Partial, Internal: Full
+==33824== Profiling application: ./k_tccg_03 72 72 24 72 72
+==33824== Profiling result:
+   Start  Duration            Grid Size      Block Size     Regs*    SSMem*    DSMem*      Size  Throughput  SrcMemType  DstMemType           Device   Context    Stream  Name
+      ms        ms                                                       KB         B        MB        GB/s
+610.5154  10.15449                    -               -         -         -         -  68.34375    6.572656    Pageable      Device  Tesla V100-PCIE         1         7  [CUDA memcpy HtoD]
+620.8610  31.31211                    -               -         -         -         -  205.0313    6.394517    Pageable      Device  Tesla V100-PCIE         1         7  [CUDA memcpy HtoD]
+652.1952  2.98e-03                    -               -         -         -         -  0.013184    4.326144    Pageable      Device  Tesla V100-PCIE         1         7  [CUDA memcpy HtoD]
+652.2728  1.080430           (5832 1 1)        (8 16 1)       123  8.000000         0         -           -           -           -  Tesla V100-PCIE         1         7  kernel__3_1(double*, double*, double*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int) [438]
+653.3604  6.627344                    -               -         -         -         -  68.34375   10.070692      Device    Pageable  Tesla V100-PCIE         1         7  [CUDA memcpy DtoH]
+
+Regs: Number of registers used per CUDA thread. This number includes registers used internally by the CUDA driver and/or tools and can be more than what the compiler shows.
+SSMem: Static shared memory allocated per CUDA block.
+DSMem: Dynamic shared memory allocated per CUDA block.
+SrcMemType: The type of source memory accessed by memory operation/copy
+DstMemType: The type of destination memory accessed by memory operation/copy

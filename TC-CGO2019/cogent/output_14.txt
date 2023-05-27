@@ -1,0 +1,1 @@
+==34378== NVPROF is profiling process 34378, command: ./k_tccg_14 312 296 312 312

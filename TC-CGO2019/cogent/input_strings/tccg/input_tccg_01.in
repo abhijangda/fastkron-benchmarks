@@ -1,0 +1,4 @@
+# abc-bda-dc
+# needs representative problem sizes
+#t3 [a,b,c] += sum(d) * t2 [b,d,a] * v2 [d,c];
+t3 [a,320,b,16,c,16,f,16] +=  sum(d,16) * t2 [d,f,c,a] * v2 [b,d];
