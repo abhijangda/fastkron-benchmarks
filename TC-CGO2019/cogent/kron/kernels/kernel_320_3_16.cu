@@ -682,7 +682,10 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 	int stride_int_t2 = size_a * size_b * size_c;
 	int stride_int_v2 = 1;
 
-	for (int i = 0; i < 100; i++) {
+	 cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);	for (int i = 0; i < 110; i++) {
+	if (i==9)cudaEventRecord(start);
 	// Decision Tree for Kernel Types
 	// No Chance to Utilize the Register Transpose
 	if (size_a % SIZE_SLICE_1_A == 0 && size_d1 % SIZE_SLICE_1_D1 == 0 && size_d2 % SIZE_SLICE_1_D2 == 0 && size_b % SIZE_SLICE_1_B == 0 && size_c % SIZE_SLICE_1_C == 0)
@@ -723,6 +726,14 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 	}
 
 	}
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+
+	float milliseconds = 0;
+
+	cudaEventElapsedTime(&milliseconds, start, stop);
+
+	printf("Time of one iteration: %f milliseconds\n", milliseconds/100.);
 	// Copy the Result from Device to Host
 	cudaMemcpy(t3, dev_t3, sizeof(float) * (size_a * size_d1 * size_d2 * size_b * size_c), cudaMemcpyDeviceToHost);
 

@@ -74,10 +74,20 @@ def tc_gen_code_kernel_caller(f,    interface_name,     kernel_name,        l_in
     #
     #tc_gen_code_interface_Force_Partial_Kernel(f, kernel_name, l_combined_var_thread_block, l_external_index, l_internal_index,
     #                                    l_combined_register_mappings, l_combined_t3_parameters, l_combined_t2_parameters, l_combined_v2_parameters, l_combined_internal_addrs, opt_pre_computed)
-    f.write("\tfor (int i = 0; i < 100; i++) {\n")
+    f.write("""\t cudaEvent_t start, stop;
+\tcudaEventCreate(&start);
+\tcudaEventCreate(&stop);""")
+    f.write("\tfor (int i = 0; i < 110; i++) {\n")
+    f.write("\tif (i==9)cudaEventRecord(start);\n")
     tc_gen_code_interface_DecisionTree(f, kernel_name, l_combined_var_thread_block, l_external_index, l_internal_index,
                                         l_combined_register_mappings, l_combined_t3_parameters, l_combined_t2_parameters, l_combined_v2_parameters, l_combined_internal_addrs, opt_pre_computed)
     f.write("\t}\n")
+    f.write("\tcudaEventRecord(stop);\n")
+    f.write("""\tcudaEventSynchronize(stop);\n
+\tfloat milliseconds = 0;\n
+\tcudaEventElapsedTime(&milliseconds, start, stop);\n
+\tprintf(\"Time of one iteration: %f milliseconds\\n\", milliseconds/100.);\n""")
+
     #
     #   [7] Copy the Result from Device to Host
     #
