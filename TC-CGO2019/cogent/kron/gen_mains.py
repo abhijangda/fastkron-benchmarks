@@ -72,6 +72,6 @@ int main(int argc, char** argv)
 import sys
 
 for facs in range(2, 20):
-    main_code = create_main(3)
+    main_code = create_main(facs)
     with open(f"mains/main_{facs}_facs.c", "w") as f:
         f.write(main_code)

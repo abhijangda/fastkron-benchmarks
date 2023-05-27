@@ -44,12 +44,11 @@ int kronRow = atoi(argv[2]);
 int size_b = kronRow;
 int size_c = kronRow;
 int size_d = kronRow;
-int size_e = kronRow;
-int size_A = size_a * size_b * size_c * size_d ;
+int size_A = size_a * size_b * size_c ;
 host_C 		= (float*)malloc(sizeof(float) * size_A);
 host_A 		= (float*)malloc(sizeof(float) * size_A);
 host_B 		= (float*)malloc(sizeof(float) * kronRow*kronRow);
 pre_Initializing_Input_Tensors(host_C, host_C, size_A, host_A, size_A, host_B, kronRow*kronRow);
-sd_t_d2_fusion_(size_a,size_b,size_c,size_d,size_e,host_C, host_A, host_B, 1, -1);
+sd_t_d2_fusion_(size_a,size_b,size_c,size_d,host_C, host_A, host_B, 1, -1);
 return 0;
 } 
