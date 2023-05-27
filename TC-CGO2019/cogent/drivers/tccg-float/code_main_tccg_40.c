@@ -60,7 +60,7 @@ int main(int argc, char** argv)
 	host_C_chk 	= (float*)malloc(sizeof(float) * size_C);
 	host_A 		= (float*)malloc(sizeof(float) * size_A);
 	host_B 		= (float*)malloc(sizeof(float) * size_B);
-	
+	printf("host_C %p\n", host_C);
 	printf ("==========================================================================================================\n");
     printf (">>> abcdef-gdab-efgc\n");
     printf (">>> t3 [a,16,b,16,c,16,d,16,e,16,f,16] += sum(g,16) * t2 [g,d,a,b] * v2 [e,f,g,c];\n");

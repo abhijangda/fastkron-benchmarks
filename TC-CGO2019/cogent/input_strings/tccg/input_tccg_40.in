@@ -1,4 +1,1 @@
-# abcdef-gdab-efgc
-# 24 16 16 16 24 16 24
-# t3 [a,b,c,d,e,f] += sum(g) * t2 [g,d,a,b] * v2 [e,f,g,c];
-t3 [a,320,f,64,b,64,c,64] += sum(g,64) * t2 [g,a,b,c] * v2 [g,f];
+t3 [a,320,d,16,b,16,c,16] += sum(e,16) * t2 [a,b,c,e] * v2 [e,d];

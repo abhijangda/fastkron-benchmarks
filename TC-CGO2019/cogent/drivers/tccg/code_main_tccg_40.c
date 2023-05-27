@@ -23,7 +23,7 @@ int main(int argc, char** argv)
 	int size_idx_a, size_idx_b, size_idx_c, size_idx_d, size_idx_e, size_idx_f, size_idx_g;
 
 	// Problem Size
-	size_idx_a = 320;
+	size_idx_a = 16;
 	size_idx_b = 16;
 	size_idx_c = 16;
 	size_idx_d = 16;
