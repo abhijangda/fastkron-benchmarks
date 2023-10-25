@@ -34,7 +34,6 @@ warmup = 10
 epochs = 10
 
 for case in cases:
-  print(case)
   factors = []
   for p,q in zip(case.ps, case.qs):
       factors += [torch.ones(p,q, dtype=float).cuda()]    
@@ -52,6 +51,4 @@ for case in cases:
   run_case(epochs)
   t = run_case(warmup)
   flops = case.flops()/(t/1e3)
-  print("GFLOPS", flops/1e9)
-  
-  
+  print(case, "GFLOPS", flops/1e9)
