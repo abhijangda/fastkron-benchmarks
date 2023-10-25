@@ -32,8 +32,8 @@ def getstatusoutput(command):
 
 M = 1024
 cases = [
-    # Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
-       Shape(M, 4, 16, 16),   Shape(M//2, 5, 16, 16),
+        Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
+        Shape(M, 4, 16, 16),   Shape(M//2, 5, 16, 16),
         Shape(M, 3, 32, 32),   Shape(M//2, 4, 32, 32),
         Shape(M, 2, 64, 64),   Shape(M//2, 3, 64, 64),
         Shape(M, 2, 128, 128), Shape(M//4, 3, 128, 128)]
