@@ -30,22 +30,35 @@ def getstatusoutput(command):
         print("output", o)
     return o
 
+cwd = os.getcwd()
+os.chdir("TC-CGO2019/cogent/kron")
+
+def run_cases(cases):
+    for case in cases:
+        # print(getstatusoutput("ls -a"))
+        run_binary = f"run_{320 if case.m == 1024 else case.m}_{case.n}_{case.ps[0]}"
+        getstatusoutput(f"make " + run_binary)
+        o = getstatusoutput(f"./{run_binary} {case.m} {case.ps[0]}")
+        t = re.findall(r'Time of one iteration: ([\d\.]+) milliseconds', o)[0]
+        t = float(t)
+        flops = case.flops()/((t*case.n)/1e3)
+        print(case, "%.2f"%(flops/1e9), "%.2f"%(t*case.n))
+
 M = 1024
-cases = [
+big_cases = [
         Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
         Shape(M, 4, 16, 16),   Shape(M//2, 5, 16, 16),
         Shape(M, 3, 32, 32),   Shape(M//2, 4, 32, 32),
         Shape(M, 2, 64, 64),   Shape(M//2, 3, 64, 64),
         Shape(M, 2, 128, 128), Shape(M//4, 3, 128, 128)]
 
-cwd = os.getcwd()
-os.chdir("TC-CGO2019/cogent/kron")
+# run_cases(big_cases)
 
-for case in cases:
-    # print(getstatusoutput("ls -a"))
-    getstatusoutput(f"make run_320_{case.n}_{case.ps[0]}")
-    o = getstatusoutput(f"./run_320_{case.n}_{case.ps[0]} {case.m} {case.ps[0]}")
-    t = re.findall(r'Time of one iteration: ([\d\.]+) milliseconds', o)[0]
-    t = float(t)
-    flops = case.flops()/((t*case.n)/1e3)
-    print(case, "GFLOPS", flops/1e9)
+M = 16
+small_cases = [Shape(M, 8, 8, 8),
+          Shape(M, 6, 16, 16),
+          Shape(M, 5, 32, 32),
+          Shape(M, 4, 64, 64),
+        #  Shape(M, 3, 128, 128)
+          ]
+run_cases(small_cases)
