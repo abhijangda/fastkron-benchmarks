@@ -1,6 +1,8 @@
 import os
 import subprocess
 import re
+from functools import reduce
+import time
 
 class Shape:
   def __init__(self, m, n, p, q):
@@ -8,7 +10,16 @@ class Shape:
     self.n = n
     self.ps = [p for i in range(0, n)]
     self.qs = [q for i in range(0, n)]
+    self.k = reduce((lambda a, b: a * b), self.ps)
 
+  def flops(self):
+    ops = 0
+    k = self.k
+    for p,q in zip(reversed(self.ps),reversed(self.qs)):
+      k = (k/p)*q
+      ops += k * p
+    return 2 * self.m * ops
+    
   def __repr__(self):
     return f"{self.m}_{self.ps[0]}x{self.qs[0]}^{self.n}"
 
@@ -66,6 +77,33 @@ class FastKronEval:
 
       return (wofuse, wofusetime, fused, fusedtime)
 
+class GPyTorchEval:
+  def __init__(self):
+    pass
+  def run_kron(self, shape, GM, GK, LocalKrons):
+    import gpytorch as gp
+    factors = []
+    if (shape.ps[0] == 16 and shape.n == 5) or \
+       (shape.ps[0] == 32 and shape.n == 4) or \
+       (shape.ps[0] == 128 and shape.n == 3):
+      shape.m = 320
+    for p,q in zip(shape.ps, shape.qs):
+        factors += [torch.ones(p, q, dtype=float).cuda()]    
+    x = torch.ones(shape.m, shape.k, dtype=float).cuda()
+    kp = gp.lazy.KroneckerProductLazyTensor(*factors)
+    def run_case(r):
+        t1 = time.time()
+        for i in range(r):
+            y = x @ kp
+        torch.cuda.synchronize()
+        t2 = time.time()
+        return (t2-t1)*1000/r
+    
+    run_case(10)
+    t = run_case(20)
+    flops = shape.flops()/(t/1e3)
+    return (flops/1e9, t)
+
 def run_single_gpu(fk_dir, fk_bench_dir):
   M = 1024
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
@@ -74,9 +112,12 @@ def run_single_gpu(fk_dir, fk_bench_dir):
            Shape(M, 2, 64, 64),   Shape(M, 3, 64, 64),
            Shape(M, 2, 128, 128), Shape(M, 3, 128, 128)]
   fk_eval = FastKronEval(fk_dir)
+  gpEval = GPyTorchEval()
   for shape in cases:
-    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
-    print(shape, "&", fuseflops, "&", wofuseflops)
+    (wofuseflops, _, fuseflops, _) = (1,1,1,1) #fk_eval.run_kron(shape, 1, 1, 1)
+    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
+    
+    print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops)
 
 def run_single_gpu_small():
   M = 16
