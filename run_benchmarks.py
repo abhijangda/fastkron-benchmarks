@@ -82,11 +82,8 @@ class GPyTorchEval:
     pass
   def run_kron(self, shape, GM, GK, LocalKrons):
     import gpytorch as gp
+    import torch
     factors = []
-    if (shape.ps[0] == 16 and shape.n == 5) or \
-       (shape.ps[0] == 32 and shape.n == 4) or \
-       (shape.ps[0] == 128 and shape.n == 3):
-      shape.m = 320
     for p,q in zip(shape.ps, shape.qs):
         factors += [torch.ones(p, q, dtype=float).cuda()]    
     x = torch.ones(shape.m, shape.k, dtype=float).cuda()
@@ -102,6 +99,7 @@ class GPyTorchEval:
     run_case(10)
     t = run_case(20)
     flops = shape.flops()/(t/1e3)
+    torch.cuda.empty_cache()
     return (flops/1e9, t)
 
 class CogentEval:
@@ -113,25 +111,48 @@ class CogentEval:
       run_binary = f"run_{320 if shape.m == 1024 else shape.m}_{shape.n}_{shape.ps[0]}"
       run_command(f"make " + run_binary)
       o = run_command(f"./{run_binary} {shape.m} {shape.ps[0]}")
-      t = re.findall(r'Time of one iteration: ([\d\.]+) milliseconds', o)[0]
-      t = float(t)
-      flops = shape.flops()/((t*shape.n)/1e3)
-      return (flops/1e9, t*shape.n)
+      try:
+        t = re.findall(r'Time of one iteration: ([\d\.]+) milliseconds', o)[0]
+        t = float(t)
+        flops = shape.flops()/((t*shape.n)/1e3)
+        return (flops/1e9, t*shape.n)
+      except:
+        print(f"./{run_binary} {shape.m} {shape.ps[0]}")
+        print(o)
+        return None
 
-def run_single_gpu(fk_dir, fk_bench_dir):
+def run_single_gpu_large_M(fk_dir, fk_bench_dir):
   M = 1024
+  M2 = 320
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
-           Shape(M, 4, 16, 16),   Shape(M, 5, 16, 16),
-           Shape(M, 3, 32, 32),   Shape(M, 4, 32, 32),
+           Shape(M, 4, 16, 16),   
+           Shape(M2, 5, 16, 16),
+           Shape(M, 3, 32, 32),   Shape(M2, 4, 32, 32),
            Shape(M, 2, 64, 64),   Shape(M, 3, 64, 64),
-           Shape(M, 2, 128, 128), Shape(M, 3, 128, 128)]
+           Shape(M, 2, 128, 128), Shape(M2, 3, 128, 128)]
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
 
   for shape in cases:
-    (wofuseflops, _, fuseflops, _) = (1,1,1,1) #fk_eval.run_kron(shape, 1, 1, 1)
-    (gpflops, gptime) = (1,1) #gpEval.run_kron(shape, 1, 1, 1)
+    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
+    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
+    (cogentflops, cogentime) = cogentEval.run_kron(shape, 1, 1, 1)
+    print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
+
+def run_single_gpu_small_M(fk_dir, fk_bench_dir):
+  M = 16
+  cases = [Shape(M, 8, 8, 8),
+           Shape(M, 6, 16, 16),
+           Shape(M, 5, 32, 32),
+           Shape(M, 4, 64, 64)]
+  fk_eval = FastKronEval(fk_dir)
+  gpEval = GPyTorchEval()
+  cogentEval = CogentEval(fk_bench_dir)
+
+  for shape in cases:
+    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
+    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape, 1, 1, 1)
     print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
 
@@ -172,7 +193,8 @@ def multi_gpu():
 
 
 def do_evaluation(fk_dir, fk_bench):
-  run_single_gpu(fk_dir, fk_bench)
+  # run_single_gpu_large_M(fk_dir, fk_bench)
+  run_single_gpu_small_M(fk_dir, fk_bench)
 
 if __name__ == "__main__":
   import argparse
