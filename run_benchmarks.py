@@ -57,7 +57,7 @@ class FastKronEval:
 
   def run_kron(self, shape, GM, GK, LocalKrons):
     with Executor(self.fk_dir) as executor:
-      self.gen_kernels(shape, False)
+      self.gen_kernels(shape, True if (GM*GK > 1) else False)
       self.build_kron()
       ld_path = "LD_LIBRARY_PATH="+self.fk_dir
       kron = ld_path + " " + f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
@@ -156,21 +156,7 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
     (cogentflops, cogentime) = cogentEval.run_kron(shape, 1, 1, 1)
     print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
 
-def run_single_gpu_small():
-  M = 16
-  cases = [Shape(M, 8, 8, 8),
-           Shape(M, 6, 16, 16),
-           Shape(M, 5, 32, 32),
-           Shape(M, 4, 64, 64),
-          #  Shape(M, 3, 128, 128)
-           ]
-
-  for shape in cases:
-    gen_kernels(shape, False)
-    build_kron()
-    run_kron(shape, 1, 1, 1)
-
-def multi_gpu():
+def run_multi_gpu(fk_dir):
   cases = []
   M_64 = 64
   cases += [Shape(M_64, 4, 64, 64)]
@@ -178,23 +164,22 @@ def multi_gpu():
   cases += [Shape(M_128, 4, 128, 128)]
   
   # run_command("make gen-multi-gpu-tests-kernel")
+  fk_eval = FastKronEval(fk_dir)
 
   for shape in cases:
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
-    gen_kernels(shape, True)
-    build_kron()
     for j,gpus in enumerate([1, 2, 4, 8, 16]):
       gm = GMs[j]
       gk = GKs[j]
       shapeGM = Shape(shape.m * gm, shape.n, shape.ps[0], shape.qs[0])
-      LocalKrons = shapeGM.n if gk == 1 else shapeGM.n - 2
-      run_kron(shapeGM, gm, gk, LocalKrons)
-
+      (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
+      print(shape, fkflops)
 
 def do_evaluation(fk_dir, fk_bench):
   # run_single_gpu_large_M(fk_dir, fk_bench)
-  run_single_gpu_small_M(fk_dir, fk_bench)
+  # run_single_gpu_small_M(fk_dir, fk_bench)
+  run_multi_gpu(fk_dir)
 
 if __name__ == "__main__":
   import argparse
