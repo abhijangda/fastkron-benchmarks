@@ -36,19 +36,20 @@ class FastKronEval:
   def __init__(self, fk_dir):
     self.fk_dir = fk_dir
 
-  def gen_kernels(shape, distKernels):
+  def gen_kernels(self, shape, distKernels):
     run_command("python3 src/gen_tuner_kernels.py -distinct-factors " + \
                 str(shape.n) + " " + " ".join([f"{pq[0]},{pq[1]}" for pq in zip(shape.ps, shape.qs)]) + \
                 (" -dist-kernels " if distKernels else ""))
 
-  def build_kron():
+  def build_kron(self):
     run_command("make kron -j")
 
-  def run_kron(shape, GM, GK, LocalKrons):
+  def run_kron(self, shape, GM, GK, LocalKrons):
     with Executor(self.fk_dir) as executor:
-      gen_kernels(shape, False)
-      build_kron()
-      kron = f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
+      self.gen_kernels(shape, False)
+      self.build_kron()
+      ld_path = "LD_LIBRARY_PATH="+self.fk_dir
+      kron = ld_path + " " + f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
       if GM * GK != 1:
         kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons {LocalKrons}"
 
@@ -63,7 +64,7 @@ class FastKronEval:
         wofuse = fused
         wofusetime = fusedtime
 
-      return (shape, GM*GK, wofuse, wofusetime, fused, fusedtime)
+      return (wofuse, wofusetime, fused, fusedtime)
 
 def run_single_gpu(fk_dir, fk_bench_dir):
   M = 1024
@@ -74,7 +75,8 @@ def run_single_gpu(fk_dir, fk_bench_dir):
            Shape(M, 2, 128, 128), Shape(M, 3, 128, 128)]
   fk_eval = FastKronEval(fk_dir)
   for shape in cases:
-    fk_eval.run_kron(shape, 1, 1, 1)
+    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
+    print(shape, "&", fuseflops, "&", wofuseflops)
 
 def run_single_gpu_small():
   M = 16
@@ -118,8 +120,9 @@ def do_evaluation(fk_dir, fk_bench):
 if __name__ == "__main__":
   import argparse
   parser = argparse.ArgumentParser()
-  parser.add_argument('-fk', required=True, type=str, help='Path to FastKron')
-  parser.add_argument('-fk-bench', required=True, type=str, help='Path to FastKron Benchmarks')
+  parser.add_argument('-fk-dir', required=True, type=str, help='Path to FastKron')
+  parser.add_argument('-fk-bench-dir', required=True, type=str, help='Path to FastKron Benchmarks')
+  args = parser.parse_args()
 
   try:
     import gpytorch
@@ -140,4 +143,4 @@ if __name__ == "__main__":
     print("torch is not installed")
     sys.exit(1)
   
-  do_evaluation(parser.fk_dir, parser.fk_bench)
+  do_evaluation(os.path.abspath(args.fk_dir), os.path.abspath(args.fk_bench_dir))
