@@ -52,14 +52,13 @@ plt.ylabel('TFLOPS')
 
 plt.xlabel('Kron-Matmul of M=1024 and diverse P$^N$ values', fontsize='large')
 # plt.title('Contribution by the teams')
-plt.yticks([0,2,4,6,8,10,12,14])
-plt.xticks(ind+width, [f"{parse_m(row[0])}, {g}" for g,row in enumerate(filtered_data)], rotation=45)
+plt.xticks(ind+width, [f"{parse_m(row[0])}, {2**g}" for g,row in enumerate(filtered_data)])
 plt.legend((p1[0], p2[0]), ('DISTAL', 'FastKron'),
             loc='upper left', fontsize='large', bbox_to_anchor=(0.0, 1.05),
             ncol=2,columnspacing=1,handlelength=1.7)
 
 FIGURES_DIR = "./"
-    
+
 plt.rcParams["font.family"] = "libertine"
 #FIGURES_DIR = "./"
 fig = plt.gcf()
