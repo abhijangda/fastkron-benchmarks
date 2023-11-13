@@ -17,8 +17,8 @@ small-singlegpu: small_batch_size_float_and_double.py
 single-gpu-flops.pdf: single-gpu-flops.py
 	python3 gpu-flops.py single-gpu-flops.csv $@
 
-single-gpu-benchmarks.pdf: single-gpu-benchmarks.py results-single-gpu.csv
-	python3 single-gpu-benchmarks.py results-single-gpu.csv
+real-world-benchmarks.pdf: real-world-benchmarks.py real-world-benchmarks.csv
+	python3 real-world-benchmarks.py real-world-benchmarks.csv $@
 
 multi-gpu-64-4.pdf: multi-gpu-flops.py 
 	python3 multi-gpu-flops.py multi-gpu-flops-64.csv $@
