@@ -23,6 +23,9 @@ class Shape:
   def __repr__(self):
     return f"{self.m}_{self.ps[0]}x{self.qs[0]}^{self.n}"
 
+  def __eq__(self, other):
+    return repr(self) == repr(other)
+
 def run_command(command):
   (s, o) = subprocess.getstatusoutput(command)
   if s != 0:
@@ -46,6 +49,7 @@ class Executor:
 class FastKronEval:
   def __init__(self, fk_dir):
     self.fk_dir = fk_dir
+    self.last_shape = None
 
   def gen_kernels(self, shape, distKernels):
     run_command("python3 src/gen_tuner_kernels.py -distinct-factors " + \
@@ -57,12 +61,42 @@ class FastKronEval:
 
   def run_kron(self, shape, GM, GK, LocalKrons):
     with Executor(self.fk_dir) as executor:
-      self.gen_kernels(shape, True if (GM*GK > 1) else False)
+      if GM*GK > 1:
+        run_command("make gen-multi-gpu-tests-kernel")
+      else: 
+        self.gen_kernels(shape, False)
       self.build_kron()
+      
       ld_path = "LD_LIBRARY_PATH="+self.fk_dir
       kron = ld_path + " " + f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
       if GM * GK != 1:
-        kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons {LocalKrons}"
+        kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons 2"
+
+      o = run_command(kron + " --fuse")
+      fused = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
+      fusedtime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
+      if shape.ps[0] <= 32:
+        o = run_command(kron)
+        wofuse = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
+        wofusetime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
+      else:
+        wofuse = fused
+        wofusetime = fusedtime
+
+      return (wofuse, wofusetime, fused, fusedtime)
+
+  def run_distal(self, shape, GM, GK, LocalKrons):
+    with Executor(self.fk_dir) as executor:
+      if GM*GK > 1:
+        run_command("make gen-multi-gpu-tests-kernel")
+      else: 
+        self.gen_kernels(shape, False)
+      self.build_kron()
+        
+      ld_path = "LD_LIBRARY_PATH="+self.fk_dir + " DIST_COMM=NCCL"
+      kron = ld_path + " " + f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
+      if GM * GK != 1:
+        kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons 1"
 
       o = run_command(kron + " --fuse")
       fused = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
@@ -174,7 +208,8 @@ def run_multi_gpu(fk_dir):
       gk = GKs[j]
       shapeGM = Shape(shape.m * gm, shape.n, shape.ps[0], shape.qs[0])
       (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
-      print(shape, fkflops)
+      (_, _, distalflops, _) = fk_eval.run_distal(shapeGM, gm, gk, 1)
+      print(shapeGM, "&", fkflops, "&", distalflops)
 
 def do_evaluation(fk_dir, fk_bench):
   # run_single_gpu_large_M(fk_dir, fk_bench)
