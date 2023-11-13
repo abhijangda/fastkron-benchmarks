@@ -27,9 +27,10 @@ class Shape:
     return repr(self) == repr(other)
 
 def run_command(command):
+  print("Running ", command, " in directory ", os.getcwd())
   (s, o) = subprocess.getstatusoutput(command)
   if s != 0:
-    print (f"Running {command}\n", o)
+    print (f"Error running {command}\n", o)
     assert False
   return o
 
@@ -144,13 +145,6 @@ class CogentEval:
   def __init__(self, fk_bench_dir):
     self.fk_bench_dir = fk_bench_dir
   
-  # def run_kron(self, shape, GM, GK, LocalKrons):
-  #   with Executor(os.path.join(self.fk_bench_dir, "TC-CGO2019/cogent/kron")) as exector:
-  #     run_binary = f"run_{320 if shape.m == 1024 else shape.m}_{shape.n}_{shape.ps[0]}"
-  #     run_command(f"make " + run_binary)
-  #     o = run_command(f"./{run_binary} {shape.m} {shape.ps[0]}")
-  #     return self.parse_output(shape, o)
-
   def run_kron(self, shape):
     with Executor(os.path.join(self.fk_bench_dir, "TC-CGO2019/cogent/kron")) as exector:
       o = run_command(f"python3 gen_kernels.py {shape.m} {shape.n} {shape.ps[0]}")
@@ -170,6 +164,7 @@ class CogentEval:
       return None
 
 def run_single_gpu_large_M(fk_dir, fk_bench_dir):
+  resultsCSV = ""
   M = 1024
   M2 = 320
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
@@ -186,7 +181,10 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
+    resultsCSV += "".join((shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)) + "\n"
+
+  with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
+    f.write(resultsCSV)
 
 def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   M = 16
@@ -197,12 +195,21 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
-
+  
+  floatResultsCSV = ""
+  doubleResultsCSV = ""
   for shape in cases:
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
+    floatResultsCSV += "".join((shape, "&", fuseflops, "&", gpflops, '&', cogentflops)) + "\n"
+    doubleResultsCSV += "".join((shape, "&", fuseflops/2, "&", gpflops/2, '&', cogentflops/2)) + "\n"
+  
+  with open(os.path.join(fk_bench_dir, "Table-3-float.csv"), "w") as f:
+    f.write(floatResultsCSV)
+
+  with open(os.path.join(fk_bench_dir, "Table-3-double.csv"), "w") as f:
+    f.write(doubleResultsCSV)
 
 def run_real_world(fk_dir, fk_bench_dir):
   cases = [
@@ -246,7 +253,9 @@ def run_real_world(fk_dir, fk_bench_dir):
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
-
+  
+  resultsCSV = ""
+  
   for shape in cases:
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1, False)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
@@ -254,7 +263,11 @@ def run_real_world(fk_dir, fk_bench_dir):
       (cogentflops, cogentime) = (gpflops, gptime)
     else:
       (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
+    resultsCSV += "".join((shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)) + "\n"
+  
+  with open(os.path.join(fk_bench_dir, "real-world-benchmarks.csv"), "w") as f:
+    f.write(floatResultsCSV)
+
 
 def run_multi_gpu(fk_dir):
   cases = []
@@ -265,6 +278,8 @@ def run_multi_gpu(fk_dir):
   
   # run_command("make gen-multi-gpu-tests-kernel")
   fk_eval = FastKronEval(fk_dir)
+  resultsCSV64 = ""
+  resultsCSV128 = ""
 
   for shape in cases:
     GMs = [1, 2, 2, 4, 4]
@@ -275,7 +290,16 @@ def run_multi_gpu(fk_dir):
       shapeGM = Shape(shape.m * gm, shape.n, shape.ps[0], shape.qs[0])
       (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
       (_, _, distalflops, _) = fk_eval.run_distal(shapeGM, gm, gk, 1)
-      print(shapeGM, "&", fkflops, "&", distalflops)
+      if shape.ps[0]==64:
+        resultsCSV64 += "".join((shapeGM, "&", fkflops, "&", distalflops)) + "\n"
+      else:
+        resultsCSV128 += "".join((shapeGM, "&", fkflops, "&", distalflops)) + "\n"
+
+  with open(os.path.join(fk_bench_dir, "multi-gpu-flops-64.csv"), "w") as f:
+    f.write(resultsCSV64)
+
+  with open(os.path.join(fk_bench_dir, "multi-gpu-flops-128.csv"), "w") as f:
+    f.write(resultsCSV128)
 
 def do_evaluation(fk_dir, fk_bench):
   # run_single_gpu_large_M(fk_dir, fk_bench)
