@@ -3,6 +3,7 @@ import csv
 from common import *
 
 csv_file = sys.argv[1]
+pdf_file = sys.argv[2]
 
 filtered_data = []
 
@@ -92,6 +93,5 @@ fig.subplots_adjust(bottom=0.1)
 fig.set_size_inches(5.5, 3)
 
 # ax.set_xticks([])
-figure_file = "single-gpu-float-flops.pdf"
-fig.savefig(FIGURES_DIR+figure_file,bbox_inches='tight',pad_inches=0)
+fig.savefig(FIGURES_DIR+pdf_file,bbox_inches='tight',pad_inches=0)
 plt.show()

@@ -15,16 +15,16 @@ small-singlegpu: small_batch_size_float_and_double.py
 # 	python3 singlegpu.py results-M\=320.csv $* 4 0
 
 single-gpu-flops.pdf: single-gpu-flops.py
-	python3 single-gpu-flops.py single-gpu-flops.csv
+	python3 gpu-flops.py single-gpu-flops.csv $@
 
 single-gpu-benchmarks.pdf: single-gpu-benchmarks.py results-single-gpu.csv
 	python3 single-gpu-benchmarks.py results-single-gpu.csv
 
-weak-scaling-64-4.pdf: weak-scaling.py results-increasingM-weakscaling-P64-N4.csv
-	python3 weak-scaling.py results-increasingM-weakscaling-P64-N4.csv true weakscaling-P64-N4.pdf
+multi-gpu-64-4.pdf: multi-gpu-flops.py 
+	python3 multi-gpu-flops.py multi-gpu-flops-64.csv $@
 
-weak-scaling-128-4.pdf: weak-scaling.py results-increasingM-weakscaling-P128-N4.csv
-	python3 weak-scaling.py results-increasingM-weakscaling-P128-N4.csv false weakscaling-P128-N4.pdf
+multi-gpu-128-4.pdf: multi-gpu-flops.py 
+	python3 multi-gpu-flops.py multi-gpu-flops-128.csv $@ 
 
 weak-scaling: weak-scaling-64-4.pdf weak-scaling-128-4.pdf
 
