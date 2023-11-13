@@ -59,7 +59,7 @@ class FastKronEval:
   def build_kron(self):
     run_command("make kron -j")
 
-  def run_kron(self, shape, GM, GK, LocalKrons):
+  def run_kron(self, shape, GM, GK, LocalKrons, callnofuse=True):
     with Executor(self.fk_dir) as executor:
       if GM*GK > 1:
         run_command("make gen-multi-gpu-tests-kernel")
@@ -75,7 +75,7 @@ class FastKronEval:
       o = run_command(kron + " --fuse")
       fused = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
       fusedtime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
-      if shape.ps[0] <= 32:
+      if shape.ps[0] <= 32 and callnofuse:
         o = run_command(kron)
         wofuse = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
         wofusetime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
@@ -115,6 +115,11 @@ class GPyTorchEval:
   def __init__(self):
     pass
   def run_kron(self, shape, GM, GK, LocalKrons):
+    r = self._run_kron(shape, GM, GK, LocalKrons)
+    torch.cuda.empty_cache()
+    return r
+
+  def _run_kron(self, shape, GM, GK, LocalKrons):
     import gpytorch as gp
     import torch
     factors = []
@@ -133,7 +138,6 @@ class GPyTorchEval:
     run_case(10)
     t = run_case(20)
     flops = shape.flops()/(t/1e3)
-    torch.cuda.empty_cache()
     return (flops/1e9, t)
 
 class CogentEval:
@@ -145,15 +149,25 @@ class CogentEval:
       run_binary = f"run_{320 if shape.m == 1024 else shape.m}_{shape.n}_{shape.ps[0]}"
       run_command(f"make " + run_binary)
       o = run_command(f"./{run_binary} {shape.m} {shape.ps[0]}")
-      try:
-        t = re.findall(r'Time of one iteration: ([\d\.]+) milliseconds', o)[0]
-        t = float(t)
-        flops = shape.flops()/((t*shape.n)/1e3)
-        return (flops/1e9, t*shape.n)
-      except:
-        print(f"./{run_binary} {shape.m} {shape.ps[0]}")
-        print(o)
-        return None
+      return self.parse_output(shape, o)
+
+  def run_real_world(self, shape):
+    with Executor(os.path.join(self.fk_bench_dir, "TC-CGO2019/cogent/kron")) as exector:
+      o = run_command(f"python3 gen_kernels.py {shape.m} {shape.n} {shape.ps[0]}")
+      o = run_command(f'nvcc -O3 -std=c++11 -arch=sm_70 mains/main_{shape.n}_facs.c kernels/kernel_{shape.m}_{shape.n}_{shape.ps[0]}.cu -Xptxas "-v " -o run_temp')
+      o = run_command(f"./run_temp {shape.m} {shape.ps[0]}")
+      return self.parse_output(shape, o)
+
+  def parse_output(self, shape, output):
+    try:
+      t = re.findall(r'Time of one iteration: ([\d\.]+) milliseconds', output)[0]
+      t = float(t)
+      flops = shape.flops()/((t*shape.n)/1e3)
+      return (flops/1e9, t*shape.n)
+    except:
+      print(f"./{run_binary} {shape.m} {shape.ps[0]}")
+      print(o)
+      return None
 
 def run_single_gpu_large_M(fk_dir, fk_bench_dir):
   M = 1024
@@ -190,6 +204,58 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
     (cogentflops, cogentime) = cogentEval.run_kron(shape, 1, 1, 1)
     print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
 
+def run_real_world(fk_dir, fk_bench_dir):
+  cases = [
+           Shape(20, 7, 2, 2),
+           Shape(20, 9, 2, 2),
+           Shape(50, 9, 2, 2),
+           Shape(20, 10, 2, 2),
+           Shape(1, 11, 2, 2),
+
+           Shape(10, 2, 64, 64),
+           Shape(10, 2, 64, 64),
+           Shape(50, 2, 64, 64),
+           
+           Shape(4, 9, 2, 2),
+           Shape(8, 9, 2, 2),
+           Shape(16, 9, 2, 2),
+           Shape(20, 9, 2, 2),
+
+           Shape(8, 3, 8, 8),
+           Shape(8, 3, 8, 8),
+           Shape(16, 3, 8, 8),
+           Shape(20, 3, 8, 8),
+
+           Shape(1024, 7, 4, 4),
+           Shape(1024, 9, 4, 4),
+           Shape(256, 7, 8, 8),
+
+           Shape(1, 4, 8, 8),
+           Shape(1, 4, 32, 32),
+
+           Shape(1526, 6, 4, 4),
+           Shape(156, 3, 8, 8),
+           Shape(2967, 7, 4, 4),
+
+           Shape(16, 8, 8, 8),
+           Shape(16, 6, 16, 16),
+           Shape(16, 5, 32, 32),
+           Shape(16, 3, 64, 64),
+           ]
+
+  fk_eval = FastKronEval(fk_dir)
+  gpEval = GPyTorchEval()
+  cogentEval = CogentEval(fk_bench_dir)
+
+  for shape in cases:
+    (wofuseflops, _, fuseflops, _) = (1,1,1,1)#fk_eval.run_kron(shape, 1, 1, 1, False)
+    (gpflops, gptime) = (1,1)#gpEval.run_kron(shape, 1, 1, 1)
+    if shape.ps[0] <= 4:
+      (cogentflops, cogentime) = (gpflops, gptime)
+    else:
+      (cogentflops, cogentime) = cogentEval.run_real_world(shape)
+    print(shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)
+
 def run_multi_gpu(fk_dir):
   cases = []
   M_64 = 64
@@ -214,7 +280,8 @@ def run_multi_gpu(fk_dir):
 def do_evaluation(fk_dir, fk_bench):
   # run_single_gpu_large_M(fk_dir, fk_bench)
   # run_single_gpu_small_M(fk_dir, fk_bench)
-  run_multi_gpu(fk_dir)
+  # run_multi_gpu(fk_dir)
+  run_real_world(fk_dir, fk_bench)
 
 if __name__ == "__main__":
   import argparse
