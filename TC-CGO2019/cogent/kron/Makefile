@@ -11,7 +11,6 @@ kernels/kernel_16_8_8.cu: gen_kernels.py
 run_16_8_8: mains/main_8_facs.c kernels/kernel_16_8_8.cu
 	nvcc -O3 -std=c++11 -arch=sm_70 $? -Xptxas "-v " -o $@
 
-
 kernels/kernel_1024_4_16.cu: gen_kernels.py
 	python3 gen_kernels.py 1024 4 16
 run_320_4_16: mains/main_4_facs.c kernels/kernel_1024_4_16.cu
