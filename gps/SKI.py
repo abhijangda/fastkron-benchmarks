@@ -23,6 +23,8 @@ class SKI(gpytorch.models.ExactGP):
     covar_x = self.covar_module(x)
     return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
+SKIP = SKI
+
 class LOVE(gpytorch.models.ExactGP):
   class LargeFeatureExtractor(torch.nn.Sequential):           
     def __init__(self, input_dim):                                      
@@ -150,6 +152,8 @@ if __name__ == "__main__":
       self.p = p
       self.n = n
       self.num_trace = num_trace
+    def __str__(self):
+      return self.dataset + " & " + self.p + "^" + self.n
 
   cases = [
     Case("autompg", 8, 7, 100),
@@ -160,6 +164,7 @@ if __name__ == "__main__":
     Case("airfoil", 32, 5, 20),
     Case("servo", 64, 4, 50),
   ]
+  results = {"SKI": "", "SKIP": "", "LOVE": ""}
   with gpytorch.settings.max_root_decomposition_size(0):
     with gpytorch.settings.use_toeplitz(False):
       with gpytorch.settings.fast_computations.log_prob(True):
@@ -168,12 +173,18 @@ if __name__ == "__main__":
             with gpytorch.settings.max_cholesky_size(0):
               with gpytorch.settings.max_cg_iterations(20):
                 with gpytorch.settings.verbose_linalg(False):
-                  for case in cases:
-                    with gpytorch.settings.num_trace_samples(case.num_trace):
-                      switch_KroneckerProduct(False)
-                      (total1, gpkron) = train(SKI, dataset, case.dataset, case.p)
-                      # torch.cuda.empty_cache()
-                      # switch_KroneckerProduct(False)
-                      # (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
-                      print(total1, gpkron)
-                      # print(, fastkron)
+                  for gptype in [SKI, SKIP, LOVE]:
+                    s = "SKI" if gptype == SKI else ("SKIP" if gptype == SKIP else "LOVE")
+                    for case in cases:
+                      with gpytorch.settings.num_trace_samples(case.num_trace):
+                        switch_KroneckerProduct(False)
+                        (total1, gpkron) = train(gptype, dataset, case.dataset, case.p)
+                        # torch.cuda.empty_cache()
+                        # switch_KroneckerProduct(False)
+                        # (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
+                        (total2, _) = 1,1
+                        results[s] += str(case) + " & " + total1/total2
+                        print(total1, gpkron)
+                        # print(, fastkron)
+  print(results)
+                  
