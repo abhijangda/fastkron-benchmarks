@@ -1,3 +1,5 @@
+import torch
+import time
 import linear_operator.operators.kronecker_product_linear_operator
 
 orig_matmul = linear_operator.operators.kronecker_product_linear_operator._matmul
