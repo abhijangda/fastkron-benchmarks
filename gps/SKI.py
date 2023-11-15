@@ -66,10 +66,10 @@ def format_exception(e):
 
     return exception_str
 
-n = int(sys.argv[1])
-dims = int(sys.argv[2])
-grid_size = int(sys.argv[3])
-num_trace_samples = int(sys.argv[4])
+# n = int(sys.argv[1])
+# dims = int(sys.argv[2])
+grid_size = int(sys.argv[1])
+num_trace_samples = 20 #int(sys.argv[1])
 
 if False:
     train_x = torch.zeros(n, dims)
@@ -79,8 +79,8 @@ if False:
     # True function is sin( 2*pi*(x0+x1))
     train_y = torch.sin((train_x[:, 0] + train_x[:, 1]) * (2 * math.pi)) + torch.randn_like(train_x[:, 0]).mul(0.01)
 else:
-    dataset = sys.argv[5]
-    dataset_name = sys.argv[6]
+    dataset = sys.argv[2]
+    dataset_name = sys.argv[3]
     data = torch.Tensor(loadmat(os.path.join(dataset,dataset_name+".mat"))['data'])
     X = data[:, :-1]
     X = X - X.min(0)[0]
@@ -89,10 +89,11 @@ else:
     train_n = int(math.floor(0.48*len(X)))
     train_x = X[:train_n, :].contiguous()
     train_y = y[:train_n].contiguous()
-    print(train_x.shape, train_y.shape)
+    dims = train_x.shape[1]
     test_x = X[train_n:, :].contiguous()
     test_y = y[train_n:].contiguous()
 
+print("N =", dims, "; P =", grid_size)
 train_x = train_x.cuda()
 train_y = train_y.cuda()
 
