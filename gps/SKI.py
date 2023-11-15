@@ -60,7 +60,7 @@ class LOVE(gpytorch.models.ExactGP):
     return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 def train(klass, dataset, dataset_name, grid_size):
-  data = torch.Tensor(loadmat(os.path.join(dataset,dataset_name+".mat"))['data'])
+  data = torch.Tensor(loadmat(os.path.join(os.path.join(dataset,dataset_name),dataset_name+".mat"))['data'])
   X = data[:, :-1]
   X = X - X.min(0)[0]
   X = 2 * (X / X.max(0)[0]) - 1
@@ -77,7 +77,7 @@ def train(klass, dataset, dataset_name, grid_size):
   train_y = train_y.cuda()
 
   likelihood = gpytorch.likelihoods.GaussianLikelihood()
-  model = klass(train_x, train_y, likelihood, grid_size, dims)
+  model = klass(train_x, train_y, likelihood, dims, grid_size)
 
   # Find optimal model hyperparameters
   model.cuda()
@@ -92,7 +92,7 @@ def train(klass, dataset, dataset_name, grid_size):
   optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
   torch.cuda.synchronize()
   start = time.time()
-  for i in range(training_iterations):
+  for i in range(10):
     print ("i = ", i)
     output = model(train_x)
     loss = -mll(output, train_y)
@@ -101,8 +101,7 @@ def train(klass, dataset, dataset_name, grid_size):
   
   torch.cuda.synchronize()
   end = time.time()
-  print("Total time ", (end - start)*1e3, " ms")
-  print("KronMatmulTime ", KronMatmulTime, " ms")
+  return (end-start)*1e3, KronMatmulTime
 
 gpytorch.settings.max_root_decomposition_size(0)  
 gpytorch.settings.use_toeplitz(False)
@@ -152,12 +151,30 @@ def switch_KroneckerProduct(use_fastkron):
   linear_operator.operators.kronecker_product_linear_operator._t_matmul = new_t_matmul
 
 if __name__ == "__main__":
-  gptype = sys.argv[1]
-  grid_size = int(sys.argv[2])
-  num_trace_samples = int(sys.argv[3])
-  dataset = sys.argv[4]
-  dataset_name = sys.argv[5]
-
-  with gpytorch.settings.num_trace_samples(num_trace_samples):
-    train(SKI, dataset, dataset_name, grid_size)
+  dataset = sys.argv[1]
   
+  class Case:
+    def __init__(self, dataset, p, n, num_trace):
+      self.dataset = dataset
+      self.p = p
+      self.n = n
+      self.num_trace = num_trace
+
+  cases = {
+    Case("autompg", 8, 7, 100),
+    Case("energy", 8, 8, 30),
+    Case("airfoil", 16, 5, 100),
+    Case("yacht", 16, 6, 30),
+    Case("servo", 32, 4, 100),
+    Case("airfoil", 32, 5, 20),
+    Case("servo", 64, 4, 50),
+  }
+  for case in cases:
+    with gpytorch.settings.num_trace_samples(case.num_trace):
+      switch_KroneckerProduct(False)
+      (total1, gpkron) = train(SKI, dataset, case.dataset, case.n)
+      torch.cuda.empty_cache()
+      switch_KroneckerProduct(False)
+      (total2, fastkron) = train(SKI, dataset, case.dataset, case.n)
+      print(total1, total2)
+      print(gpkron, fastkron)
