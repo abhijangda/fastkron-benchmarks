@@ -69,7 +69,7 @@ def format_exception(e):
 # n = int(sys.argv[1])
 # dims = int(sys.argv[2])
 grid_size = int(sys.argv[1])
-num_trace_samples = 20 #int(sys.argv[1])
+num_trace_samples = 10 #int(sys.argv[1])
 
 if False:
     train_x = torch.zeros(n, dims)
@@ -86,7 +86,7 @@ else:
     X = X - X.min(0)[0]
     X = 2 * (X / X.max(0)[0]) - 1
     y = data[:, -1]
-    train_n = int(math.floor(0.48*len(X)))
+    train_n = int(math.floor(0.64*len(X)))
     train_x = X[:train_n, :].contiguous()
     train_y = y[:train_n].contiguous()
     dims = train_x.shape[1]
