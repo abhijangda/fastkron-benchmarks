@@ -103,15 +103,6 @@ def train(klass, dataset, dataset_name, grid_size):
   end = time.time()
   return (end-start)*1e3, KronMatmulTime
 
-gpytorch.settings.max_root_decomposition_size(0)  
-gpytorch.settings.use_toeplitz(False)
-gpytorch.settings.fast_computations.log_prob(True)
-gpytorch.settings.debug(False)
-gpytorch.settings.cg_tolerance(0)
-gpytorch.settings.max_cholesky_size(0)
-gpytorch.settings.max_cg_iterations(20)
-gpytorch.settings.verbose_linalg(True)
-
 import linear_operator
 import linear_operator.operators.kronecker_product_linear_operator
 orig_matmul = linear_operator.operators.kronecker_product_linear_operator._matmul
@@ -160,7 +151,7 @@ if __name__ == "__main__":
       self.n = n
       self.num_trace = num_trace
 
-  cases = {
+  cases = [
     Case("autompg", 8, 7, 100),
     Case("energy", 8, 8, 30),
     Case("airfoil", 16, 5, 100),
@@ -168,13 +159,21 @@ if __name__ == "__main__":
     Case("servo", 32, 4, 100),
     Case("airfoil", 32, 5, 20),
     Case("servo", 64, 4, 50),
-  }
-  for case in cases:
-    with gpytorch.settings.num_trace_samples(case.num_trace):
-      switch_KroneckerProduct(False)
-      (total1, gpkron) = train(SKI, dataset, case.dataset, case.n)
-      torch.cuda.empty_cache()
-      switch_KroneckerProduct(False)
-      (total2, fastkron) = train(SKI, dataset, case.dataset, case.n)
-      print(total1, total2)
-      print(gpkron, fastkron)
+  ]
+  with gpytorch.settings.max_root_decomposition_size(0):
+    with gpytorch.settings.use_toeplitz(False):
+      with gpytorch.settings.fast_computations.log_prob(True):
+        with gpytorch.settings.debug(False):
+          with gpytorch.settings.cg_tolerance(0):
+            with gpytorch.settings.max_cholesky_size(0):
+              with gpytorch.settings.max_cg_iterations(20):
+                with gpytorch.settings.verbose_linalg(False):
+                  for case in cases:
+                    with gpytorch.settings.num_trace_samples(case.num_trace):
+                      switch_KroneckerProduct(False)
+                      (total1, gpkron) = train(SKI, dataset, case.dataset, case.p)
+                      # torch.cuda.empty_cache()
+                      # switch_KroneckerProduct(False)
+                      # (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
+                      print(total1, gpkron)
+                      # print(, fastkron)
