@@ -16,37 +16,10 @@ from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 #from sgkigp.gpyexample.gridkernel import CustomGridInterpolationKernel
 
-from gpytorch.kernels import GridInterpolationKernel
-
-import linear_operator.operators.kronecker_product_linear_operator
-
-orig_matmul = linear_operator.operators.kronecker_product_linear_operator._matmul
-orig_t_matmul = linear_operator.operators.kronecker_product_linear_operator._t_matmul
-
-KronMatmulTime = 0
-def new_matmul(linear_ops, kp_shape, rhs):
-    global KronMatmulTime
-    torch.cuda.synchronize()
-    s = time.time()
-    res = orig_matmul(linear_ops, kp_shape, rhs)
-    torch.cuda.synchronize()
-    e = time.time()
-    KronMatmulTime += (e - s) * 1000
-    return res
-
-def new_t_matmul(linear_ops, kp_shape, rhs):
-    global KronMatmulTime
-    torch.cuda.synchronize()
-    s = time.time()
-    res = orig_t_matmul(linear_ops, kp_shape, rhs)
-    torch.cuda.synchronize()
-    e = time.time()
-    KronMatmulTime += (e - s) * 1000
-    return res
-
-linear_operator.operators.kronecker_product_linear_operator._matmul = new_matmul
-linear_operator.operators.kronecker_product_linear_operator._t_matmul = new_t_matmul
+import switch_KroneckerProduct
 import gpytorch
+
+from gpytorch.kernels import GridInterpolationKernel
 
 # Source: https://docs.gpytorch.ai/en/latest/examples/02_Scalable_Exact_GPs/KISSGP_Regression.html
 
@@ -115,6 +88,12 @@ class GPRegressionModel(gpytorch.models.ExactGP):
 
             self.covar_module = gpytorch.kernels.ScaleKernel(GridInterpolationKernel(gpytorch.kernels.RBFKernel(ard_num_dims=dims),
                                                         grid_size=grid_size, num_dims=dims))
+            # if True:
+            #     self.covar_module = gpytorch.kernels.ProductStructureKernel(
+            #         gpytorch.kernels.ScaleKernel(GridInterpolationKernel(gpytorch.kernels.RBFKernel(ard_num_dims=dims),
+            #                                             grid_size=grid_size, num_dims=1)),
+            #         num_dims = dims
+            #     )
 
     def forward(self, x):
             mean_x = self.mean_module(x)
@@ -175,14 +154,14 @@ def train(training_iterations=5):
 
     # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=10))
 
-with gpytorch.settings.use_toeplitz(False):
+with gpytorch.settings.max_root_decomposition_size(0):
+    with gpytorch.settings.use_toeplitz(False):
     # with  gpytorch.settings.fast_computations(, True, True):
-    with gpytorch.settings.num_trace_samples(num_trace_samples): 
-        with gpytorch.settings.fast_computations.log_prob(True):
+        with gpytorch.settings.num_trace_samples(num_trace_samples): 
+            with gpytorch.settings.fast_computations.log_prob(True):
     # with gpytorch.settings.max_preconditioner_size(0):
     # with gpytorch.settings.min_preconditioning_size(10):
-            with gpytorch.settings.debug(False):
-                with gpytorch.settings.max_root_decomposition_size(0):
+                with gpytorch.settings.debug(False):
                     with gpytorch.settings.cg_tolerance(0):
                         with gpytorch.settings.max_cholesky_size(0):
                             with  gpytorch.settings.max_cg_iterations(20):
