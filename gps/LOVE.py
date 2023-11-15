@@ -125,7 +125,7 @@ with gpytorch.settings.max_root_decomposition_size(0):
                 with gpytorch.settings.debug(False):
                     with gpytorch.settings.cg_tolerance(0):
                         with gpytorch.settings.max_cholesky_size(0):
-                            with  gpytorch.settings.max_cg_iterations(100):
+                            with  gpytorch.settings.max_cg_iterations(20):
                                 # with  gpytorch.settings.terminate_cg_by_size(0):
                                     with gpytorch.settings.verbose_linalg(True):
                                         train()

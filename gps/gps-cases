@@ -10,7 +10,8 @@ servo & 64^4 & 50 & 35%
 
 -----------SKIP----------
 Dataset & P^N & Trace & % of Kron
-
+autompg & 8^7 & 100 & 28%
+energy  & 8^8 & 29 & 25%
 airfoil & 16^5 & 100 & 28%
 yacht & 16^6 & 30 & 39%
 servo & 32^4 & 100 & 25%
