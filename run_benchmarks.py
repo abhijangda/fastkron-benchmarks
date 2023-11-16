@@ -281,10 +281,15 @@ def run_multi_gpu(fk_dir):
   resultsCSV64 = ""
   resultsCSV128 = ""
 
+  smi_output = run_command("nvidia-smi --list-gpus")
+  num_gpus = list(smi_output.split("\n"))
+  assert f"GPU {num_gpus-1}" in smi_output
+  print(f"Found {num_gpus} GPUs")
+
   for shape in cases:
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
-    #nvidia-smi --list-gpus
+    
     for j,gpus in enumerate([1, 2, 4, 8, 16]):
       gm = GMs[j]
       gk = GKs[j]
