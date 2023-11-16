@@ -23,10 +23,11 @@ class SKI(gpytorch.models.ExactGP):
     covar_x = self.covar_module(x)
     return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-SKIP = SKI
+class SKIP(SKI):
+  pass
 
 class LargeFeatureExtractor(torch.nn.Sequential):           
-  def __init__(self, input_dim):                                      
+  def __init__(self, input_dim, dims):                                      
     super(LargeFeatureExtractor, self).__init__()        
     self.add_module('linear1', torch.nn.Linear(input_dim, 1000))
     self.add_module('relu1', torch.nn.ReLU())                  
@@ -47,7 +48,7 @@ class LOVE(gpytorch.models.ExactGP):
     )
     
     # Also add the deep net
-    self.feature_extractor = LargeFeatureExtractor(input_dim=train_x.size(-1))
+    self.feature_extractor = LargeFeatureExtractor(train_x.size(-1), dims)
 
   def forward(self, x):
     # We're first putting our data through a deep net (feature extractor)
@@ -94,7 +95,7 @@ def train(klass, dataset, dataset_name, grid_size):
   optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
   torch.cuda.synchronize()
   start = time.time()
-  for i in range(1):
+  for i in range(10):
     print ("i = ", i)
     output = model(train_x)
     loss = -mll(output, train_y)
@@ -120,6 +121,7 @@ def switch_KroneckerProduct(use_fastkron):
       s = time.time()
       if use_fastkron:
         res = rhs
+        res.requires_grad_()
       else:
         res = orig_matmul(linear_ops, kp_shape, rhs)
       torch.cuda.synchronize()
@@ -133,6 +135,7 @@ def switch_KroneckerProduct(use_fastkron):
       s = time.time()
       if use_fastkron:
         res = rhs
+        res.requires_grad_()
       else:
         res = orig_t_matmul(linear_ops, kp_shape, rhs)
       torch.cuda.synchronize()
@@ -180,11 +183,11 @@ if __name__ == "__main__":
                         switch_KroneckerProduct(False)
                         (total1, gpkron) = train(gptype, dataset, case.dataset, case.p)
                         torch.cuda.empty_cache()
-                        # switch_KroneckerProduct(False)
-                        # (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
-                        (total2, _) = 1,1
-                        results[s] += str(case) + " & " + str(total1/total2)
-                        print(total1, gpkron)
+                        switch_KroneckerProduct(True)
+                        (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
+                        torch.cuda.empty_cache()
+                        results[s] += str(case) + " & " + "%.2f"%(total1/total2) + "\n"
                         # print(, fastkron)
-  print(results)
-                  
+  for gp,result in results.items():
+    print("-------"+gp+"-------")
+    print(result)
