@@ -197,14 +197,14 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
   
-  floatResultsCSV = ""
-  doubleResultsCSV = ""
+  floatResultsCSV = "P & N & FastKron & COGENT & GPyTorch"
+  doubleResultsCSV = "P & N & FastKron & COGENT & GPyTorch"
   for shape in cases:
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    floatResultsCSV += f"{str(shape)} & {fuseflops} & {gpflops} & {cogentflops}" + "\n"
-    doubleResultsCSV += f"{str(shape)} & {float(fuseflops)/2} & {float(gpflops)/2} & {float(cogentflops)/2}" + "\n"
+    floatResultsCSV += f"{shape.p} & {shape.n} & {fuseflops} & {cogentflops} & {gpflops}" + "\n"
+    doubleResultsCSV += f"{shape.p} & {shape.n} & {float(fuseflops)/2} & {float(cogentflops)/2} & {float(gpflops)/2}" + "\n"
   
   with open(os.path.join(fk_bench_dir, "Table-3-float.csv"), "w") as f:
     f.write(floatResultsCSV)
@@ -270,7 +270,7 @@ def run_real_world(fk_dir, fk_bench_dir):
     f.write(resultsCSV)
 
 
-def run_multi_gpu(fk_dir):
+def run_multi_gpu(fk_dir, fk_bench_dir):
   cases = []
   M_64 = 64
   cases += [Shape(M_64, 4, 64, 64)]
@@ -301,10 +301,12 @@ def run_multi_gpu(fk_dir):
         resultsCSV64 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
       else:
         resultsCSV128 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
+  
   print(resultsCSV64)
+  print(resultsCSV128)
   with open(os.path.join(fk_bench_dir, "multi-gpu-flops-64.csv"), "w") as f:
     f.write(resultsCSV64)
-  print(resultsCSV128)
+  
   with open(os.path.join(fk_bench_dir, "multi-gpu-flops-128.csv"), "w") as f:
     f.write(resultsCSV128)
 
@@ -314,7 +316,7 @@ def do_evaluation(fk_dir, fk_bench, bench):
   elif bench == "Table-3":
     run_single_gpu_small_M(fk_dir, fk_bench)
   elif bench == "Figure-11":
-    run_multi_gpu(fk_dir)
+    run_multi_gpu(fk_dir, fk_bench)
   elif bench == "Figure-10":
     run_real_world(fk_dir, fk_bench)
 
