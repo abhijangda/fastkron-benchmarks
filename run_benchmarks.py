@@ -301,19 +301,26 @@ def run_multi_gpu(fk_dir):
   with open(os.path.join(fk_bench_dir, "multi-gpu-flops-128.csv"), "w") as f:
     f.write(resultsCSV128)
 
-def do_evaluation(fk_dir, fk_bench):
-  # run_single_gpu_large_M(fk_dir, fk_bench)
-  run_single_gpu_small_M(fk_dir, fk_bench)
-  # run_multi_gpu(fk_dir)
-  # run_real_world(fk_dir, fk_bench)
+def do_evaluation(fk_dir, fk_bench, bench):
+  if bench == "Figure-9":
+    run_single_gpu_large_M(fk_dir, fk_bench)
+  elif bench == "Table-3":
+    run_single_gpu_small_M(fk_dir, fk_bench)
+  elif bench == "Figure-10":
+    run_multi_gpu(fk_dir)
+  elif bench == "Figure-11":
+    run_real_world(fk_dir, fk_bench)
 
 if __name__ == "__main__":
   import argparse
   parser = argparse.ArgumentParser()
   parser.add_argument('-fk-dir', required=True, type=str, help='Path to FastKron')
   parser.add_argument('-fk-bench-dir', required=True, type=str, help='Path to FastKron Benchmarks')
+  parser.add_argument('-bench', required=True, type=str, help="[Figure-9 | Table-3 | Figure-10 | Figure-11]")
+
   args = parser.parse_args()
 
+  assert args.bench in ["Figure-9", "Table-3", "Figure-10", "Figure-11"]
   try:
     import gpytorch
   except:
@@ -333,4 +340,4 @@ if __name__ == "__main__":
     print("torch is not installed")
     sys.exit(1)
   
-  do_evaluation(os.path.abspath(args.fk_dir), os.path.abspath(args.fk_bench_dir))
+  do_evaluation(os.path.abspath(args.fk_dir), os.path.abspath(args.fk_bench_dir), args.bench)
