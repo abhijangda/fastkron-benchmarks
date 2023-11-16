@@ -180,9 +180,12 @@ if __name__ == "__main__":
                     s = "SKI" if gptype == SKI else ("SKIP" if gptype == SKIP else "LOVE")
                     for case in cases:
                       with gpytorch.settings.num_trace_samples(case.num_trace):
+                        print(f"{case} for {s}")
+                        print("Use GPyTorch")
                         switch_KroneckerProduct(False)
                         (total1, gpkron) = train(gptype, dataset, case.dataset, case.p)
                         torch.cuda.empty_cache()
+                        print("Use FastKron Single-GPU")
                         switch_KroneckerProduct(True)
                         (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
                         torch.cuda.empty_cache()
@@ -190,4 +193,5 @@ if __name__ == "__main__":
                         # print(, fastkron)
   for gp,result in results.items():
     print("-------"+gp+"-------")
+    print("Dataset & P^N & Speedup 1 GPU & Speedup 16 GPUs")
     print(result)
