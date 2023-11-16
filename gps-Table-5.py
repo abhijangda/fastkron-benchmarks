@@ -193,7 +193,7 @@ if __name__ == "__main__":
                         results[s] += str(case) + " & " + "%.2f"%(total1/total2) + "\n"
                         # print(, fastkron)
   
-  print("Table 5")
+  print("\n\n\n\nTable 5")
   for gp,result in results.items():
     print("-------"+gp+"-------")
     print("Dataset & P^N & Speedup 1 GPU &")
