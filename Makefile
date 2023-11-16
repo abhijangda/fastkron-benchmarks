@@ -14,17 +14,17 @@ small-singlegpu: small_batch_size_float_and_double.py
 # large-kron-%-16.pdf: singlegpu.py
 # 	python3 singlegpu.py results-M\=320.csv $* 4 0
 
-single-gpu-flops.pdf: single-gpu-flops.py
-	python3 gpu-flops.py single-gpu-flops.csv $@
+single-gpu-flops.pdf: plots/single-gpu-flops.py
+	python3 plots/single-gpu-flops.py single-gpu-flops.csv $@
 
-real-world-benchmarks.pdf: real-world-benchmarks.py real-world-benchmarks.csv
-	python3 real-world-benchmarks.py real-world-benchmarks.csv $@
+real-world-benchmarks.pdf: plots/real-world-benchmarks.py real-world-benchmarks.csv
+	python3 plots/real-world-benchmarks.py real-world-benchmarks.csv $@
 
-multi-gpu-64-4.pdf: multi-gpu-flops.py 
-	python3 multi-gpu-flops.py multi-gpu-flops-64.csv $@
+multi-gpu-64-4.pdf: plots/multi-gpu-flops.py 
+	python3 plots/multi-gpu-flops.py multi-gpu-flops-64.csv $@
 
-multi-gpu-128-4.pdf: multi-gpu-flops.py 
-	python3 multi-gpu-flops.py multi-gpu-flops-128.csv $@ 
+multi-gpu-128-4.pdf: plots/multi-gpu-flops.py 
+	python3 plots/multi-gpu-flops.py multi-gpu-flops-128.csv $@ 
 
 weak-scaling: weak-scaling-64-4.pdf weak-scaling-128-4.pdf
 
