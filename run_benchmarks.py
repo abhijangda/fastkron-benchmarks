@@ -291,7 +291,7 @@ def run_multi_gpu(fk_dir):
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
     
-    for j,gpus in enumerate([1, 2, 4, 8, 16]):
+    for j,gpus in enumerate([1, 2, 4, 8, num_gpus]):
       gm = GMs[j]
       gk = GKs[j]
       shapeGM = Shape(shape.m * gm, shape.n, shape.ps[0], shape.qs[0])
@@ -313,9 +313,9 @@ def do_evaluation(fk_dir, fk_bench, bench):
     run_single_gpu_large_M(fk_dir, fk_bench)
   elif bench == "Table-3":
     run_single_gpu_small_M(fk_dir, fk_bench)
-  elif bench == "Figure-10":
-    run_multi_gpu(fk_dir)
   elif bench == "Figure-11":
+    run_multi_gpu(fk_dir)
+  elif bench == "Figure-10":
     run_real_world(fk_dir, fk_bench)
 
 if __name__ == "__main__":
