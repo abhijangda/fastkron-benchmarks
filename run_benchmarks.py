@@ -22,7 +22,8 @@ class Shape:
     
   def __repr__(self):
     return f"{self.m}_{self.ps[0]}x{self.qs[0]}^{self.n}"
-
+  def __str__(self):
+    return repr(self)
   def __eq__(self, other):
     return repr(self) == repr(other)
 
@@ -181,7 +182,7 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    resultsCSV += "".join((shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)) + "\n"
+    resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}" + "\n"
 
   with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
     f.write(resultsCSV)
@@ -202,8 +203,8 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    floatResultsCSV += "".join((shape, "&", fuseflops, "&", gpflops, '&', cogentflops)) + "\n"
-    doubleResultsCSV += "".join((shape, "&", fuseflops/2, "&", gpflops/2, '&', cogentflops/2)) + "\n"
+    floatResultsCSV += f"{str(shape)} & {fuseflops} & {gpflops} & {cogentflops}" + "\n"
+    doubleResultsCSV += f"{str(shape)} & {float(fuseflops)/2} & {float(gpflops)/2} & {float(cogentflops)/2}" + "\n"
   
   with open(os.path.join(fk_bench_dir, "Table-3-float.csv"), "w") as f:
     f.write(floatResultsCSV)
@@ -263,7 +264,7 @@ def run_real_world(fk_dir, fk_bench_dir):
       (cogentflops, cogentime) = (gpflops, gptime)
     else:
       (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    resultsCSV += "".join((shape, "&", fuseflops, "&", wofuseflops, "&", gpflops, '&', cogentflops)) + "\n"
+    resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}" + "\n"
   
   with open(os.path.join(fk_bench_dir, "real-world-benchmarks.csv"), "w") as f:
     f.write(floatResultsCSV)
@@ -282,7 +283,7 @@ def run_multi_gpu(fk_dir):
   resultsCSV128 = ""
 
   smi_output = run_command("nvidia-smi --list-gpus")
-  num_gpus = list(smi_output.split("\n"))
+  num_gpus = len(smi_output.split("\n"))
   assert f"GPU {num_gpus-1}" in smi_output
   print(f"Found {num_gpus} GPUs")
 
@@ -297,9 +298,9 @@ def run_multi_gpu(fk_dir):
       (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
       (_, _, distalflops, _) = fk_eval.run_distal(shapeGM, gm, gk, 1)
       if shape.ps[0]==64:
-        resultsCSV64 += "".join((shapeGM, "&", fkflops, "&", distalflops)) + "\n"
+        resultsCSV64 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
       else:
-        resultsCSV128 += "".join((shapeGM, "&", fkflops, "&", distalflops)) + "\n"
+        resultsCSV128 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
 
   with open(os.path.join(fk_bench_dir, "multi-gpu-flops-64.csv"), "w") as f:
     f.write(resultsCSV64)
