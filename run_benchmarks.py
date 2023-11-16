@@ -265,9 +265,9 @@ def run_real_world(fk_dir, fk_bench_dir):
     else:
       (cogentflops, cogentime) = cogentEval.run_kron(shape)
     resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}" + "\n"
-  
+  print("Results\n", resultsCSV)
   with open(os.path.join(fk_bench_dir, "real-world-benchmarks.csv"), "w") as f:
-    f.write(floatResultsCSV)
+    f.write(resultsCSV)
 
 
 def run_multi_gpu(fk_dir):
@@ -301,10 +301,10 @@ def run_multi_gpu(fk_dir):
         resultsCSV64 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
       else:
         resultsCSV128 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
-
+  print(resultsCSV64)
   with open(os.path.join(fk_bench_dir, "multi-gpu-flops-64.csv"), "w") as f:
     f.write(resultsCSV64)
-
+  print(resultsCSV128)
   with open(os.path.join(fk_bench_dir, "multi-gpu-flops-128.csv"), "w") as f:
     f.write(resultsCSV128)
 
