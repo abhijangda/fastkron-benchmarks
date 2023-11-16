@@ -95,7 +95,7 @@ def train(klass, dataset, dataset_name, grid_size):
   optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
   torch.cuda.synchronize()
   start = time.time()
-  for i in range(10):
+  for i in range(2):
     print ("i = ", i)
     output = model(train_x)
     loss = -mll(output, train_y)
@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
   cases = [
     Case("autompg", 8, 7, 100),
-    Case("energy", 8, 8, 29),
+    Case("energy", 8, 8, 20),
     Case("airfoil", 16, 5, 100),
     Case("yacht", 16, 6, 30),
     Case("servo", 32, 4, 100),
