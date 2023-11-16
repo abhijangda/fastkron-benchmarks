@@ -35,6 +35,12 @@ def run_command(command):
     assert False
   return o
 
+def total_gpu_memory():
+  o = run_command("nvidia-smi -d MEMORY -q -i 0")
+  mems = re.findall(r'Total\s*\:\s*(\d+)', o)
+  mems = [int(m) for m in mems]
+  return max(mems)
+
 class Executor:
   def __init__(self, exec_dir):
     self.exec_dir = exec_dir
@@ -168,6 +174,9 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
   resultsCSV = ""
   M = 1024
   M2 = 320
+  if total_gpu_memory() <= 16*1024:
+    M = M/2
+    M2 = M2/2
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
            Shape(M, 4, 16, 16),   
            Shape(M2, 5, 16, 16),
@@ -189,6 +198,8 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
 
 def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   M = 16
+  if total_gpu_memory() <= 16*1024:
+    M = M/2
   cases = [Shape(M, 8, 8, 8),
            Shape(M, 6, 16, 16),
            Shape(M, 5, 32, 32),
@@ -273,8 +284,11 @@ def run_real_world(fk_dir, fk_bench_dir):
 def run_multi_gpu(fk_dir, fk_bench_dir):
   cases = []
   M_64 = 64
-  cases += [Shape(M_64, 4, 64, 64)]
   M_128 = 4
+  if total_gpu_memory() <= 16*1024:
+    M_64 = M_64/2
+    M_128 = M_128/2
+  cases += [Shape(M_64, 4, 64, 64)]
   cases += [Shape(M_128, 4, 128, 128)]
   
   # run_command("make gen-multi-gpu-tests-kernel")
