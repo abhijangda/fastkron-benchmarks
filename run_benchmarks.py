@@ -284,6 +284,7 @@ def run_multi_gpu(fk_dir):
   for shape in cases:
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
+    #nvidia-smi --list-gpus
     for j,gpus in enumerate([1, 2, 4, 8, 16]):
       gm = GMs[j]
       gk = GKs[j]
