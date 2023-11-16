@@ -25,18 +25,18 @@ class SKI(gpytorch.models.ExactGP):
 
 SKIP = SKI
 
-class LOVE(gpytorch.models.ExactGP):
-  class LargeFeatureExtractor(torch.nn.Sequential):           
-    def __init__(self, input_dim):                                      
-      super(LargeFeatureExtractor, self).__init__()        
-      self.add_module('linear1', torch.nn.Linear(input_dim, 1000))
-      self.add_module('relu1', torch.nn.ReLU())                  
-      self.add_module('linear2', torch.nn.Linear(1000, 500))     
-      self.add_module('relu2', torch.nn.ReLU())                  
-      self.add_module('linear3', torch.nn.Linear(500, 50))       
-      self.add_module('relu3', torch.nn.ReLU())                  
-      self.add_module('linear4', torch.nn.Linear(50, dims))         
+class LargeFeatureExtractor(torch.nn.Sequential):           
+  def __init__(self, input_dim):                                      
+    super(LargeFeatureExtractor, self).__init__()        
+    self.add_module('linear1', torch.nn.Linear(input_dim, 1000))
+    self.add_module('relu1', torch.nn.ReLU())                  
+    self.add_module('linear2', torch.nn.Linear(1000, 500))     
+    self.add_module('relu2', torch.nn.ReLU())                  
+    self.add_module('linear3', torch.nn.Linear(500, 50))       
+    self.add_module('relu3', torch.nn.ReLU())                  
+    self.add_module('linear4', torch.nn.Linear(50, dims))         
 
+class LOVE(gpytorch.models.ExactGP):
   def __init__(self, train_x, train_y, likelihood, dims, grid_size):
     super(LOVE, self).__init__(train_x, train_y, likelihood)
     
@@ -94,7 +94,7 @@ def train(klass, dataset, dataset_name, grid_size):
   optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
   torch.cuda.synchronize()
   start = time.time()
-  for i in range(10):
+  for i in range(1):
     print ("i = ", i)
     output = model(train_x)
     loss = -mll(output, train_y)
@@ -153,11 +153,11 @@ if __name__ == "__main__":
       self.n = n
       self.num_trace = num_trace
     def __str__(self):
-      return self.dataset + " & " + self.p + "^" + self.n
+      return f"{self.dataset} & {self.p}^{self.n}"
 
   cases = [
     Case("autompg", 8, 7, 100),
-    Case("energy", 8, 8, 30),
+    Case("energy", 8, 8, 29),
     Case("airfoil", 16, 5, 100),
     Case("yacht", 16, 6, 30),
     Case("servo", 32, 4, 100),
@@ -179,11 +179,11 @@ if __name__ == "__main__":
                       with gpytorch.settings.num_trace_samples(case.num_trace):
                         switch_KroneckerProduct(False)
                         (total1, gpkron) = train(gptype, dataset, case.dataset, case.p)
-                        # torch.cuda.empty_cache()
+                        torch.cuda.empty_cache()
                         # switch_KroneckerProduct(False)
                         # (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
                         (total2, _) = 1,1
-                        results[s] += str(case) + " & " + total1/total2
+                        results[s] += str(case) + " & " + str(total1/total2)
                         print(total1, gpkron)
                         # print(, fastkron)
   print(results)
