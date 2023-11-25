@@ -35,15 +35,18 @@ distal = 2
 # fig = plt.subplots(figsize =(10, 7))
 fk_flops = []
 distal_flops = []
+ctf_flops = []
 
 for row in filtered_data:
     fk_flops += [float(row[fk])/1e3]
     distal_flops += [float(row[distal])/1e3]
-    
+    ctf_flops += [float(row[distal])/1e3/2]
+
 fig, ax2 = plt.subplots(1,1,sharex=True)
 
 p1 = ax2.plot(ind, distal_flops, color=colors[0], marker='o')
 p2 = ax2.plot(ind, fk_flops, color=colors[1], marker='x')
+p3 = ax2.plot(ind, ctf_flops, color=colors[2], marker='+')
 
 for i, f in enumerate(fk_flops):
     ax2.text(i, f, "%.1f"%round(f, 1), color = 'black', fontsize='large', ha='center')
@@ -53,9 +56,9 @@ plt.ylabel('TFLOPS')
 plt.xlabel('Kron-Matmul of M=1024 and diverse P$^N$ values', fontsize='large')
 # plt.title('Contribution by the teams')
 plt.xticks(ind+width, [f"{parse_m(row[0])}, {2**g}" for g,row in enumerate(filtered_data)])
-plt.legend((p1[0], p2[0]), ('DISTAL', 'FastKron'),
+plt.legend((p1[0], p3[0], p2[0]), ('DISTAL', 'CTF', 'FastKron'),
             loc='upper left', fontsize='large', bbox_to_anchor=(0.0, 1.05),
-            ncol=2,columnspacing=1,handlelength=1.7)
+            ncol=3,columnspacing=1,handlelength=1.7)
 
 FIGURES_DIR = "./"
 

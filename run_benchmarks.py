@@ -308,7 +308,7 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
     for j,gpus in enumerate([1, 2, 4, 8, num_gpus]):
       gm = GMs[j]
       gk = GKs[j]
-      shapeGM = Shape(shape.m * gm, shape.n, shape.ps[0], shape.qs[0])
+      shapeGM = Shape(shape.m * gpus, shape.n, shape.ps[0], shape.qs[0])
       (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
       (_, _, distalflops, _) = fk_eval.run_distal(shapeGM, gm, gk, 1)
       if shape.ps[0]==64:
