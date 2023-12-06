@@ -756,11 +756,11 @@ void sd_t_d2_fusion_(int size_a, int size_d, int size_b, int size_c, int size_e,
 	int size_d1;
 	int size_d2;
 
-	if (size_d % 8 == 0)
+	if (size_d % 16 == 0)
 	{
 		//
-		size_d1 = 8;
-		size_d2 = size_d / 8;
+		size_d1 = 16;
+		size_d2 = size_d / 16;
 	}
 	else
 	{

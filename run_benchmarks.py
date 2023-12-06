@@ -3,6 +3,7 @@ import subprocess
 import re
 from functools import reduce
 import time
+import math
 
 class Shape:
   def __init__(self, m, n, p, q):
@@ -155,7 +156,7 @@ class CogentEval:
   def run_kron(self, shape):
     with Executor(os.path.join(self.fk_bench_dir, "TC-CGO2019/cogent/kron")) as exector:
       o = run_command(f"python3 gen_kernels.py {shape.m} {shape.n} {shape.ps[0]}")
-      o = run_command(f'nvcc -O3 -std=c++11 -arch=sm_70 mains/main_{shape.n}_facs.c kernels/kernel_{shape.m}_{shape.n}_{shape.ps[0]}.cu -Xptxas "-v " -o run_temp')
+      o = run_command(f'nvcc -O3 -std=c++11 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_70,code=sm_70 mains/main_{shape.n}_facs.c kernels/kernel_{shape.m}_{shape.n}_{shape.ps[0]}.cu -Xptxas "-v " -o run_temp')
       o = run_command(f"./run_temp {shape.m} {shape.ps[0]}")
       return self.parse_output(shape, o)
 
@@ -191,7 +192,9 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}" + "\n"
+    result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}"
+    print("TFLOPs", result)
+    resultsCSV += result + "\n"
 
   with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
     f.write(resultsCSV)
@@ -305,16 +308,18 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
     
-    for j,gpus in enumerate([1, 2, 4, 8, num_gpus]):
+    for j,gpus in enumerate([2**i for i in range(0, int(math.log2(num_gpus))+1)]):
       gm = GMs[j]
       gk = GKs[j]
       shapeGM = Shape(shape.m * gpus, shape.n, shape.ps[0], shape.qs[0])
       (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
       (_, _, distalflops, _) = fk_eval.run_distal(shapeGM, gm, gk, 1)
+      result = f"{str(shapeGM)} & {fkflops} & {distalflops}"
+      print(result)
       if shape.ps[0]==64:
-        resultsCSV64 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
+        resultsCSV64 += result + "\n"
       else:
-        resultsCSV128 += f"{str(shapeGM)} & {fkflops} & {distalflops}" + "\n"
+        resultsCSV128 += result + "\n"
   
   print(resultsCSV64)
   print(resultsCSV128)
