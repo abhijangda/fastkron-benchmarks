@@ -4,6 +4,7 @@ import re
 from functools import reduce
 import time
 import math
+import shutil
 
 class Shape:
   def __init__(self, m, n, p, q):
@@ -20,7 +21,7 @@ class Shape:
       k = (k/p)*q
       ops += k * p
     return 2 * self.m * ops
-    
+
   def __repr__(self):
     return f"{self.m}_{self.ps[0]}x{self.qs[0]}^{self.n}"
   def __str__(self):
@@ -65,15 +66,22 @@ class FastKronEval:
                 str(shape.n) + " " + " ".join([f"{pq[0]},{pq[1]}" for pq in zip(shape.ps, shape.qs)]) + \
                 (" -dist-kernels " if distKernels else ""))
 
+  def setup_cmake(self):
+    if os.path.exists('build/'):
+      shutil.rmtree('build/')
+    os.mkdir('build/')
+    os.chdir('build/')
+    run_command('cmake ..')
+
   def build_kron(self):
     run_command("make kron -j")
 
   def run_kron(self, shape, GM, GK, LocalKrons, callnofuse=True):
-    with Executor(self.fk_dir) as executor:
+    with Executor(self.fk_dir) as executor: 
+      self.gen_kernels(shape, False)
+      self.setup_cmake()
       if GM*GK > 1:
         run_command("make gen-multi-gpu-tests-kernel")
-      else: 
-        self.gen_kernels(shape, False)
       self.build_kron()
       
       ld_path = "LD_LIBRARY_PATH="+self.fk_dir
@@ -96,10 +104,10 @@ class FastKronEval:
 
   def run_distal(self, shape, GM, GK, LocalKrons):
     with Executor(self.fk_dir) as executor:
+      self.gen_kernels(shape, False)
+      self.setup_cmake()
       if GM*GK > 1:
         run_command("make gen-multi-gpu-tests-kernel")
-      else: 
-        self.gen_kernels(shape, False)
       self.build_kron()
         
       ld_path = "LD_LIBRARY_PATH="+self.fk_dir + " DIST_COMM=NCCL"
@@ -211,14 +219,14 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
   
-  floatResultsCSV = "P & N & FastKron & COGENT & GPyTorch"
-  doubleResultsCSV = "P & N & FastKron & COGENT & GPyTorch"
+  floatResultsCSV = "P & N & FastKron & COGENT & GPyTorch\n"
+  doubleResultsCSV = "P & N & FastKron & COGENT & GPyTorch\n"
   for shape in cases:
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    floatResultsCSV += f"{shape.p} & {shape.n} & {fuseflops} & {cogentflops} & {gpflops}" + "\n"
-    doubleResultsCSV += f"{shape.p} & {shape.n} & {float(fuseflops)/2} & {float(cogentflops)/2} & {float(gpflops)/2}" + "\n"
+    floatResultsCSV += f"{shape.ps[0]} & {shape.n} & {fuseflops} & {cogentflops} & {gpflops}" + "\n"
+    doubleResultsCSV += f"{shape.ps[0]} & {shape.n} & {float(fuseflops)/2} & {float(cogentflops)/2} & {float(gpflops)/2}" + "\n"
   
   with open(os.path.join(fk_bench_dir, "Table-3-float.csv"), "w") as f:
     f.write(floatResultsCSV)

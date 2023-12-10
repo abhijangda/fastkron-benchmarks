@@ -8,29 +8,30 @@
 using namespace std;
 
 // created by tc_gen_definition_new()
-#define SIZE_SLICE_1_E 16
+#define SIZE_SLICE_1_F 16
 #define SIZE_SLICE_1_A 16
 #define SIZE_SLICE_1_B 4
 #define SIZE_SLICE_1_C 1
-#define SIZE_SLICE_1_D1 8
-#define SIZE_SLICE_1_D2 8
+#define SIZE_SLICE_1_D 1
+#define SIZE_SLICE_1_E1 8
+#define SIZE_SLICE_1_E2 8
 
-#define SIZE_INT_UNIT_1 SIZE_SLICE_1_E
+#define SIZE_INT_UNIT_1 SIZE_SLICE_1_F
 
-#define SIZE_TB_1_X 	SIZE_SLICE_1_A * SIZE_SLICE_1_C
-#define SIZE_TB_1_Y 	SIZE_SLICE_1_D1
+#define SIZE_TB_1_X 	SIZE_SLICE_1_A * SIZE_SLICE_1_C * SIZE_SLICE_1_D
+#define SIZE_TB_1_Y 	SIZE_SLICE_1_E1
 #define SIZE_REG_1_X 	SIZE_SLICE_1_B
-#define SIZE_REG_1_Y 	SIZE_SLICE_1_D2
+#define SIZE_REG_1_Y 	SIZE_SLICE_1_E2
 
-#define NUM_INDEX 		5
+#define NUM_INDEX 		6
 #define CEIL(a, b) 		(((a) + (b) - 1) / (b))
 
 // created by tc_gen_code_Kernel()
 __global__ void kernel__1_1(float* dev_t3, 
 float* dev_t2, 
 float* dev_v2, 
-int size_a, int size_d1, int size_d2, int size_b, int size_c, int size_e, 
-int numBlk_a, int numBlk_d1, int numBlk_d2, int numBlk_b, int numBlk_c, 
+int size_a, int size_e1, int size_e2, int size_b, int size_c, int size_d, int size_f, 
+int numBlk_a, int numBlk_e1, int numBlk_e2, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_int_t2, int stride_int_v2, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
@@ -41,28 +42,34 @@ int size_internal)
 
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
-	// # of indices mapped on TB_X: 2
+	// # of indices mapped on TB_X: 3
 	// # of indices mapped on TB_Y: 1
-	int idx_a = threadIdx.x % SIZE_SLICE_1_A;
-	int idx_c = threadIdx.x / SIZE_SLICE_1_A;
-	int idx_d1 = threadIdx.y;
+	int idx_d = threadIdx.x / (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int remaining_idx = threadIdx.x % (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int idx_c = remaining_idx / (SIZE_SLICE_1_A);
+	remaining_idx = remaining_idx % (SIZE_SLICE_1_A);
+	int idx_a = remaining_idx;
+	int idx_e1 = threadIdx.y;
 
 	int tmp_blkIdx;
-	int blk_idx_c = blockIdx.x / (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = blockIdx.x % (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_d = blockIdx.x / (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = blockIdx.x % (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_b = tmp_blkIdx / (numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_c = tmp_blkIdx / (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d2 = tmp_blkIdx / (numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d1 * numBlk_a);
+	int blk_idx_b = tmp_blkIdx / (numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d1 = tmp_blkIdx / numBlk_a;
+	int blk_idx_e2 = tmp_blkIdx / (numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e1 * numBlk_a);
+
+	int blk_idx_e1 = tmp_blkIdx / numBlk_a;
 	tmp_blkIdx = tmp_blkIdx % (numBlk_a);
 
 	int  blk_idx_a = tmp_blkIdx;
 
-	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c) * size_b) * size_d2) * size_d1) * size_a;
+	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_e2) * size_e1) * size_a;
 
 
 	float temp_av;
@@ -73,7 +80,7 @@ int size_internal)
 	for (int j = 0; j < 4; j++)
 	reg_tile[i][j] = 0.0;
 
-	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'e']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['e', 'd1', 'd2']], '+=']
+	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'd', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['f', 'e1', 'e2']], '+=']
 	#pragma unroll 1
 	for (int l = 0; l < size_internal; l += SIZE_INT_UNIT_1)
 	{
@@ -84,14 +91,14 @@ int size_internal)
 		// No Need to Put Boundary-Checks before For-Statement: : 
 		for (int ll = 0; ll < 4; ll++)
 		{
-			// ['a', 'b', 'c', 'e']
+			// ['a', 'b', 'c', 'd', 'f']
 			// Exception: Temp. version!: threadIdx.y + l + 0
 			// Exception: Temp. version!: idx_a < rng_a
-			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
+			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
 			// Exception: Temp. version!: threadIdx.y + l + 8
 			// Exception: Temp. version!: idx_a < rng_a
 			// Exception: Full-Full
-			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
+			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
 		}
 		
 		// This Part is for Loading Input-Right
@@ -99,10 +106,10 @@ int size_internal)
 		// No Need to Put Boundary-Checks before For-Statement: : 
 		for (int ll = 0; ll < 8; ll++)
 		{
-			// ['e', 'd1', 'd2']
+			// ['f', 'e1', 'e2']
 			// Exception: Temp. version!: threadIdx.x + l
-			// Exception: Temp. version!: idx_d1 < rng_d1
-			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + ll) * size_d1) * size_e + (threadIdx.x + l)];
+			// Exception: Temp. version!: idx_e1 < rng_e1
+			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + ll) * size_e1) * size_f + (threadIdx.x + l)];
 		}
 		__syncthreads();
 		//---------------------------------------------------------------------------------------------------
@@ -111,18 +118,18 @@ int size_internal)
 		// Part: Generalized Threads
 		for (int ll = 0; ll < SIZE_INT_UNIT_1; ll++)
 		{
-			temp_bv[0] = sm_b[ll][idx_d1 + 0];
-			temp_bv[1] = sm_b[ll][idx_d1 + 8];
-			temp_bv[2] = sm_b[ll][idx_d1 + 16];
-			temp_bv[3] = sm_b[ll][idx_d1 + 24];
-			temp_bv[4] = sm_b[ll][idx_d1 + 32];
-			temp_bv[5] = sm_b[ll][idx_d1 + 40];
-			temp_bv[6] = sm_b[ll][idx_d1 + 48];
-			temp_bv[7] = sm_b[ll][idx_d1 + 56];
+			temp_bv[0] = sm_b[ll][idx_e1 + 0];
+			temp_bv[1] = sm_b[ll][idx_e1 + 8];
+			temp_bv[2] = sm_b[ll][idx_e1 + 16];
+			temp_bv[3] = sm_b[ll][idx_e1 + 24];
+			temp_bv[4] = sm_b[ll][idx_e1 + 32];
+			temp_bv[5] = sm_b[ll][idx_e1 + 40];
+			temp_bv[6] = sm_b[ll][idx_e1 + 48];
+			temp_bv[7] = sm_b[ll][idx_e1 + 56];
 
 			for (int xx = 0; xx < 4; xx++) // (1)
 			{
-				temp_av = sm_a[ll][idx_a + (idx_c) * SIZE_SLICE_1_A + (xx * 16)];
+				temp_av = sm_a[ll][idx_a + (idx_c + (idx_d) * SIZE_SLICE_1_C) * SIZE_SLICE_1_A + (xx * 16)];
 
 				reg_tile[0][xx] += temp_av * temp_bv[0];
 				reg_tile[1][xx] += temp_av * temp_bv[1];
@@ -155,8 +162,8 @@ int size_internal)
 __global__ void kernel__2_1(float* dev_t3, 
 float* dev_t2, 
 float* dev_v2, 
-int size_a, int size_d1, int size_d2, int size_b, int size_c, int size_e, 
-int numBlk_a, int numBlk_d1, int numBlk_d2, int numBlk_b, int numBlk_c, 
+int size_a, int size_e1, int size_e2, int size_b, int size_c, int size_d, int size_f, 
+int numBlk_a, int numBlk_e1, int numBlk_e2, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_int_t2, int stride_int_v2, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
@@ -170,28 +177,34 @@ int size_internal)
 	int internal_offset;
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
-	// # of indices mapped on TB_X: 2
+	// # of indices mapped on TB_X: 3
 	// # of indices mapped on TB_Y: 1
-	int idx_a = threadIdx.x % SIZE_SLICE_1_A;
-	int idx_c = threadIdx.x / SIZE_SLICE_1_A;
-	int idx_d1 = threadIdx.y;
+	int idx_d = threadIdx.x / (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int remaining_idx = threadIdx.x % (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int idx_c = remaining_idx / (SIZE_SLICE_1_A);
+	remaining_idx = remaining_idx % (SIZE_SLICE_1_A);
+	int idx_a = remaining_idx;
+	int idx_e1 = threadIdx.y;
 
 	int tmp_blkIdx;
-	int blk_idx_c = blockIdx.x / (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = blockIdx.x % (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_d = blockIdx.x / (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = blockIdx.x % (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_b = tmp_blkIdx / (numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_c = tmp_blkIdx / (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d2 = tmp_blkIdx / (numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d1 * numBlk_a);
+	int blk_idx_b = tmp_blkIdx / (numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d1 = tmp_blkIdx / numBlk_a;
+	int blk_idx_e2 = tmp_blkIdx / (numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e1 * numBlk_a);
+
+	int blk_idx_e1 = tmp_blkIdx / numBlk_a;
 	tmp_blkIdx = tmp_blkIdx % (numBlk_a);
 
 	int  blk_idx_a = tmp_blkIdx;
 
-	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c) * size_b) * size_d2) * size_d1) * size_a;
+	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_e2) * size_e1) * size_a;
 
 
 	float temp_av;
@@ -202,7 +215,7 @@ int size_internal)
 	for (int j = 0; j < 4; j++)
 	reg_tile[i][j] = 0.0;
 
-	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'e']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['e', 'd1', 'd2']], '+=']
+	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'd', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['f', 'e1', 'e2']], '+=']
 	#pragma unroll 1
 	for (int l = 0; l < size_internal; l += SIZE_INT_UNIT_1)
 	{
@@ -217,14 +230,14 @@ int size_internal)
 		if (threadIdx.y < SIZE_INT_UNIT_1 - internal_upperbound)
 		for (int ll = 0; ll < 4; ll++)
 		{
-			// ['a', 'b', 'c', 'e']
+			// ['a', 'b', 'c', 'd', 'f']
 			// Exception: Temp. version!: threadIdx.y + l + 0
 			// Exception: Temp. version!: idx_a < rng_a
-			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
+			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
 			// Exception: Temp. version!: threadIdx.y + l + 8
 			// Exception: Temp. version!: idx_a < rng_a
 			if (threadIdx.y + l + 8 < size_internal) 
-			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
+			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
 		}
 		
 		// This Part is for Loading Input-Right
@@ -232,10 +245,10 @@ int size_internal)
 		if (threadIdx.x < SIZE_INT_UNIT_1 - internal_upperbound)
 		for (int ll = 0; ll < 8; ll++)
 		{
-			// ['e', 'd1', 'd2']
+			// ['f', 'e1', 'e2']
 			// Exception: Temp. version!: threadIdx.x + l
-			// Exception: Temp. version!: idx_d1 < rng_d1
-			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + ll) * size_d1) * size_e + (threadIdx.x + l)];
+			// Exception: Temp. version!: idx_e1 < rng_e1
+			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + ll) * size_e1) * size_f + (threadIdx.x + l)];
 		}
 		__syncthreads();
 		//---------------------------------------------------------------------------------------------------
@@ -244,18 +257,18 @@ int size_internal)
 		// Part: Generalized Threads
 		for (int ll = 0; ll < SIZE_INT_UNIT_1 - internal_upperbound; ll++)
 		{
-			temp_bv[0] = sm_b[ll][idx_d1 + 0];
-			temp_bv[1] = sm_b[ll][idx_d1 + 8];
-			temp_bv[2] = sm_b[ll][idx_d1 + 16];
-			temp_bv[3] = sm_b[ll][idx_d1 + 24];
-			temp_bv[4] = sm_b[ll][idx_d1 + 32];
-			temp_bv[5] = sm_b[ll][idx_d1 + 40];
-			temp_bv[6] = sm_b[ll][idx_d1 + 48];
-			temp_bv[7] = sm_b[ll][idx_d1 + 56];
+			temp_bv[0] = sm_b[ll][idx_e1 + 0];
+			temp_bv[1] = sm_b[ll][idx_e1 + 8];
+			temp_bv[2] = sm_b[ll][idx_e1 + 16];
+			temp_bv[3] = sm_b[ll][idx_e1 + 24];
+			temp_bv[4] = sm_b[ll][idx_e1 + 32];
+			temp_bv[5] = sm_b[ll][idx_e1 + 40];
+			temp_bv[6] = sm_b[ll][idx_e1 + 48];
+			temp_bv[7] = sm_b[ll][idx_e1 + 56];
 
 			for (int xx = 0; xx < 4; xx++) // (1)
 			{
-				temp_av = sm_a[ll][idx_a + (idx_c) * SIZE_SLICE_1_A + (xx * 16)];
+				temp_av = sm_a[ll][idx_a + (idx_c + (idx_d) * SIZE_SLICE_1_C) * SIZE_SLICE_1_A + (xx * 16)];
 
 				reg_tile[0][xx] += temp_av * temp_bv[0];
 				reg_tile[1][xx] += temp_av * temp_bv[1];
@@ -288,8 +301,8 @@ int size_internal)
 __global__ void kernel__3_1(float* dev_t3, 
 float* dev_t2, 
 float* dev_v2, 
-int size_a, int size_d1, int size_d2, int size_b, int size_c, int size_e, 
-int numBlk_a, int numBlk_d1, int numBlk_d2, int numBlk_b, int numBlk_c, 
+int size_a, int size_e1, int size_e2, int size_b, int size_c, int size_d, int size_f, 
+int numBlk_a, int numBlk_e1, int numBlk_e2, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_int_t2, int stride_int_v2, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
@@ -300,31 +313,37 @@ int size_internal)
 
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
-	// # of indices mapped on TB_X: 2
+	// # of indices mapped on TB_X: 3
 	// # of indices mapped on TB_Y: 1
-	int idx_a = threadIdx.x % SIZE_SLICE_1_A;
-	int idx_c = threadIdx.x / SIZE_SLICE_1_A;
-	int idx_d1 = threadIdx.y;
+	int idx_d = threadIdx.x / (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int remaining_idx = threadIdx.x % (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int idx_c = remaining_idx / (SIZE_SLICE_1_A);
+	remaining_idx = remaining_idx % (SIZE_SLICE_1_A);
+	int idx_a = remaining_idx;
+	int idx_e1 = threadIdx.y;
 
 	int tmp_blkIdx;
-	int blk_idx_c = blockIdx.x / (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = blockIdx.x % (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_d = blockIdx.x / (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = blockIdx.x % (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_b = tmp_blkIdx / (numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_c = tmp_blkIdx / (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d2 = tmp_blkIdx / (numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d1 * numBlk_a);
+	int blk_idx_b = tmp_blkIdx / (numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d1 = tmp_blkIdx / numBlk_a;
+	int blk_idx_e2 = tmp_blkIdx / (numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e1 * numBlk_a);
+
+	int blk_idx_e1 = tmp_blkIdx / numBlk_a;
 	tmp_blkIdx = tmp_blkIdx % (numBlk_a);
 
 	int  blk_idx_a = tmp_blkIdx;
 
-	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c) * size_b) * size_d2) * size_d1) * size_a;
+	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_e2) * size_e1) * size_a;
 
 	// need to support partial tiles
-	int rng_a, rng_d1, rng_d2, rng_b, rng_c;
+	int rng_a, rng_e1, rng_e2, rng_b, rng_c, rng_d;
 	if ((size_a - (blk_idx_a * SIZE_SLICE_1_A)) >= SIZE_SLICE_1_A)
 	{
 		rng_a = SIZE_SLICE_1_A;
@@ -333,21 +352,21 @@ int size_internal)
 	{
 		rng_a = size_a % SIZE_SLICE_1_A;
 	}
-	if ((size_d1 - (blk_idx_d1 * SIZE_SLICE_1_D1)) >= SIZE_SLICE_1_D1)
+	if ((size_e1 - (blk_idx_e1 * SIZE_SLICE_1_E1)) >= SIZE_SLICE_1_E1)
 	{
-		rng_d1 = SIZE_SLICE_1_D1;
+		rng_e1 = SIZE_SLICE_1_E1;
 	}
 	else
 	{
-		rng_d1 = size_d1 % SIZE_SLICE_1_D1;
+		rng_e1 = size_e1 % SIZE_SLICE_1_E1;
 	}
-	if ((size_d2 - (blk_idx_d2 * SIZE_SLICE_1_D2)) >= SIZE_SLICE_1_D2)
+	if ((size_e2 - (blk_idx_e2 * SIZE_SLICE_1_E2)) >= SIZE_SLICE_1_E2)
 	{
-		rng_d2 = SIZE_SLICE_1_D2;
+		rng_e2 = SIZE_SLICE_1_E2;
 	}
 	else
 	{
-		rng_d2 = size_d2 % SIZE_SLICE_1_D2;
+		rng_e2 = size_e2 % SIZE_SLICE_1_E2;
 	}
 	if ((size_b - (blk_idx_b * SIZE_SLICE_1_B)) >= SIZE_SLICE_1_B)
 	{
@@ -365,6 +384,14 @@ int size_internal)
 	{
 		rng_c = size_c % SIZE_SLICE_1_C;
 	}
+	if ((size_d - (blk_idx_d * SIZE_SLICE_1_D)) >= SIZE_SLICE_1_D)
+	{
+		rng_d = SIZE_SLICE_1_D;
+	}
+	else
+	{
+		rng_d = size_d % SIZE_SLICE_1_D;
+	}
 
 	float temp_av;
 	float temp_bv[8];
@@ -374,7 +401,7 @@ int size_internal)
 	for (int j = 0; j < 4; j++)
 	reg_tile[i][j] = 0.0;
 
-	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'e']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['e', 'd1', 'd2']], '+=']
+	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'd', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['f', 'e1', 'e2']], '+=']
 	#pragma unroll 1
 	for (int l = 0; l < size_internal; l += SIZE_INT_UNIT_1)
 	{
@@ -382,28 +409,28 @@ int size_internal)
 		// This is for the new version
 		// This Part is for Loading Input-Left
 		// tc_gen_code_Kernel_Load_Inputs_Abstracts()
-		if (idx_a < rng_a && 0 < rng_c)
+		if (idx_a < rng_a && 0 < rng_c && 0 < rng_d)
 		for (int ll = 0; ll < rng_b; ll++)
 		{
-			// ['a', 'b', 'c', 'e']
+			// ['a', 'b', 'c', 'd', 'f']
 			// Exception: Temp. version!: threadIdx.y + l + 0
 			// Exception: Temp. version!: idx_a < rng_a
-			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
+			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
 			// Exception: Temp. version!: threadIdx.y + l + 8
 			// Exception: Temp. version!: idx_a < rng_a
 			if (idx_a < rng_a) 
-			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
+			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
 		}
 		
 		// This Part is for Loading Input-Right
 		// tc_gen_code_Kernel_Load_Inputs_Abstracts()
-		if (idx_d1 < rng_d1)
-		for (int ll = 0; ll < rng_d2; ll++)
+		if (idx_e1 < rng_e1)
+		for (int ll = 0; ll < rng_e2; ll++)
 		{
-			// ['e', 'd1', 'd2']
+			// ['f', 'e1', 'e2']
 			// Exception: Temp. version!: threadIdx.x + l
-			// Exception: Temp. version!: idx_d1 < rng_d1
-			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + ll) * size_d1) * size_e + (threadIdx.x + l)];
+			// Exception: Temp. version!: idx_e1 < rng_e1
+			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + ll) * size_e1) * size_f + (threadIdx.x + l)];
 		}
 		__syncthreads();
 		//---------------------------------------------------------------------------------------------------
@@ -412,18 +439,18 @@ int size_internal)
 		// Part: Generalized Threads
 		for (int ll = 0; ll < SIZE_INT_UNIT_1; ll++)
 		{
-			temp_bv[0] = sm_b[ll][idx_d1 + 0];
-			temp_bv[1] = sm_b[ll][idx_d1 + 8];
-			temp_bv[2] = sm_b[ll][idx_d1 + 16];
-			temp_bv[3] = sm_b[ll][idx_d1 + 24];
-			temp_bv[4] = sm_b[ll][idx_d1 + 32];
-			temp_bv[5] = sm_b[ll][idx_d1 + 40];
-			temp_bv[6] = sm_b[ll][idx_d1 + 48];
-			temp_bv[7] = sm_b[ll][idx_d1 + 56];
+			temp_bv[0] = sm_b[ll][idx_e1 + 0];
+			temp_bv[1] = sm_b[ll][idx_e1 + 8];
+			temp_bv[2] = sm_b[ll][idx_e1 + 16];
+			temp_bv[3] = sm_b[ll][idx_e1 + 24];
+			temp_bv[4] = sm_b[ll][idx_e1 + 32];
+			temp_bv[5] = sm_b[ll][idx_e1 + 40];
+			temp_bv[6] = sm_b[ll][idx_e1 + 48];
+			temp_bv[7] = sm_b[ll][idx_e1 + 56];
 
 			for (int xx = 0; xx < 4; xx++) // (1)
 			{
-				temp_av = sm_a[ll][idx_a + (idx_c) * SIZE_SLICE_1_A + (xx * 16)];
+				temp_av = sm_a[ll][idx_a + (idx_c + (idx_d) * SIZE_SLICE_1_C) * SIZE_SLICE_1_A + (xx * 16)];
 
 				reg_tile[0][xx] += temp_av * temp_bv[0];
 				reg_tile[1][xx] += temp_av * temp_bv[1];
@@ -442,12 +469,12 @@ int size_internal)
 	// Store Results (Registers) to Global Memory
 	// Part: Generalized Threads
 	// Part: Generalized Register-Tiling
-	if (idx_a < rng_a && idx_c < rng_c && idx_d1 < rng_d1)
+	if (idx_a < rng_a && idx_c < rng_c && idx_d < rng_d && idx_e1 < rng_e1)
 	for (int i = 0; i < 8; i++)
 	{
 		for (int j = 0; j < 4; j++)
 		{
-			if(i < rng_d2 && j < rng_b)
+			if(i < rng_e2 && j < rng_b)
 			{
 			dev_t3[t3_base_thread + (i * stride_reg_y) + (j * stride_reg_x)] = reg_tile[i][j];
 			}
@@ -459,8 +486,8 @@ int size_internal)
 __global__ void kernel__4_1(float* dev_t3, 
 float* dev_t2, 
 float* dev_v2, 
-int size_a, int size_d1, int size_d2, int size_b, int size_c, int size_e, 
-int numBlk_a, int numBlk_d1, int numBlk_d2, int numBlk_b, int numBlk_c, 
+int size_a, int size_e1, int size_e2, int size_b, int size_c, int size_d, int size_f, 
+int numBlk_a, int numBlk_e1, int numBlk_e2, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_int_t2, int stride_int_v2, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
@@ -474,31 +501,37 @@ int size_internal)
 	int internal_offset;
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
-	// # of indices mapped on TB_X: 2
+	// # of indices mapped on TB_X: 3
 	// # of indices mapped on TB_Y: 1
-	int idx_a = threadIdx.x % SIZE_SLICE_1_A;
-	int idx_c = threadIdx.x / SIZE_SLICE_1_A;
-	int idx_d1 = threadIdx.y;
+	int idx_d = threadIdx.x / (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int remaining_idx = threadIdx.x % (SIZE_SLICE_1_C * SIZE_SLICE_1_A);
+	int idx_c = remaining_idx / (SIZE_SLICE_1_A);
+	remaining_idx = remaining_idx % (SIZE_SLICE_1_A);
+	int idx_a = remaining_idx;
+	int idx_e1 = threadIdx.y;
 
 	int tmp_blkIdx;
-	int blk_idx_c = blockIdx.x / (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = blockIdx.x % (numBlk_b * numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_d = blockIdx.x / (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = blockIdx.x % (numBlk_c * numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_b = tmp_blkIdx / (numBlk_d2 * numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d2 * numBlk_d1 * numBlk_a);
+	int blk_idx_c = tmp_blkIdx / (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_b * numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d2 = tmp_blkIdx / (numBlk_d1 * numBlk_a);
-	tmp_blkIdx = tmp_blkIdx % (numBlk_d1 * numBlk_a);
+	int blk_idx_b = tmp_blkIdx / (numBlk_e2 * numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e2 * numBlk_e1 * numBlk_a);
 
-	int blk_idx_d1 = tmp_blkIdx / numBlk_a;
+	int blk_idx_e2 = tmp_blkIdx / (numBlk_e1 * numBlk_a);
+	tmp_blkIdx = tmp_blkIdx % (numBlk_e1 * numBlk_a);
+
+	int blk_idx_e1 = tmp_blkIdx / numBlk_a;
 	tmp_blkIdx = tmp_blkIdx % (numBlk_a);
 
 	int  blk_idx_a = tmp_blkIdx;
 
-	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c) * size_b) * size_d2) * size_d1) * size_a;
+	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + idx_c + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_e2) * size_e1) * size_a;
 
 	// need to support partial tiles
-	int rng_a, rng_d1, rng_d2, rng_b, rng_c;
+	int rng_a, rng_e1, rng_e2, rng_b, rng_c, rng_d;
 	if ((size_a - (blk_idx_a * SIZE_SLICE_1_A)) >= SIZE_SLICE_1_A)
 	{
 		rng_a = SIZE_SLICE_1_A;
@@ -507,21 +540,21 @@ int size_internal)
 	{
 		rng_a = size_a % SIZE_SLICE_1_A;
 	}
-	if ((size_d1 - (blk_idx_d1 * SIZE_SLICE_1_D1)) >= SIZE_SLICE_1_D1)
+	if ((size_e1 - (blk_idx_e1 * SIZE_SLICE_1_E1)) >= SIZE_SLICE_1_E1)
 	{
-		rng_d1 = SIZE_SLICE_1_D1;
+		rng_e1 = SIZE_SLICE_1_E1;
 	}
 	else
 	{
-		rng_d1 = size_d1 % SIZE_SLICE_1_D1;
+		rng_e1 = size_e1 % SIZE_SLICE_1_E1;
 	}
-	if ((size_d2 - (blk_idx_d2 * SIZE_SLICE_1_D2)) >= SIZE_SLICE_1_D2)
+	if ((size_e2 - (blk_idx_e2 * SIZE_SLICE_1_E2)) >= SIZE_SLICE_1_E2)
 	{
-		rng_d2 = SIZE_SLICE_1_D2;
+		rng_e2 = SIZE_SLICE_1_E2;
 	}
 	else
 	{
-		rng_d2 = size_d2 % SIZE_SLICE_1_D2;
+		rng_e2 = size_e2 % SIZE_SLICE_1_E2;
 	}
 	if ((size_b - (blk_idx_b * SIZE_SLICE_1_B)) >= SIZE_SLICE_1_B)
 	{
@@ -539,6 +572,14 @@ int size_internal)
 	{
 		rng_c = size_c % SIZE_SLICE_1_C;
 	}
+	if ((size_d - (blk_idx_d * SIZE_SLICE_1_D)) >= SIZE_SLICE_1_D)
+	{
+		rng_d = SIZE_SLICE_1_D;
+	}
+	else
+	{
+		rng_d = size_d % SIZE_SLICE_1_D;
+	}
 
 	float temp_av;
 	float temp_bv[8];
@@ -548,7 +589,7 @@ int size_internal)
 	for (int j = 0; j < 4; j++)
 	reg_tile[i][j] = 0.0;
 
-	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'e']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['e', 'd1', 'd2']], '+=']
+	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'b', 'c', 'd', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['f', 'e1', 'e2']], '+=']
 	#pragma unroll 1
 	for (int l = 0; l < size_internal; l += SIZE_INT_UNIT_1)
 	{
@@ -560,28 +601,28 @@ int size_internal)
 		// This is for the new version
 		// This Part is for Loading Input-Left
 		// tc_gen_code_Kernel_Load_Inputs_Abstracts()
-		if (idx_a < rng_a && 0 < rng_c && threadIdx.y < SIZE_INT_UNIT_1 - internal_upperbound)
+		if (idx_a < rng_a && 0 < rng_c && 0 < rng_d && threadIdx.y < SIZE_INT_UNIT_1 - internal_upperbound)
 		for (int ll = 0; ll < rng_b; ll++)
 		{
-			// ['a', 'b', 'c', 'e']
+			// ['a', 'b', 'c', 'd', 'f']
 			// Exception: Temp. version!: threadIdx.y + l + 0
 			// Exception: Temp. version!: idx_a < rng_a
-			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
+			sm_a[threadIdx.y + 0][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 0) * stride_int_t2];
 			// Exception: Temp. version!: threadIdx.y + l + 8
 			// Exception: Temp. version!: idx_a < rng_a
 			if (threadIdx.y + l + 8 < size_internal && idx_a < rng_a) 
-			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
+			sm_a[threadIdx.y + 8][threadIdx.x + ll * 16] = dev_t2[blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + ll + (blk_idx_c * SIZE_SLICE_1_C + 0 + (blk_idx_d * SIZE_SLICE_1_D + 0) * size_c) * size_b) * size_a + (threadIdx.y + l + 8) * stride_int_t2];
 		}
 		
 		// This Part is for Loading Input-Right
 		// tc_gen_code_Kernel_Load_Inputs_Abstracts()
-		if (idx_d1 < rng_d1 && threadIdx.x < SIZE_INT_UNIT_1 - internal_upperbound)
-		for (int ll = 0; ll < rng_d2; ll++)
+		if (idx_e1 < rng_e1 && threadIdx.x < SIZE_INT_UNIT_1 - internal_upperbound)
+		for (int ll = 0; ll < rng_e2; ll++)
 		{
-			// ['e', 'd1', 'd2']
+			// ['f', 'e1', 'e2']
 			// Exception: Temp. version!: threadIdx.x + l
-			// Exception: Temp. version!: idx_d1 < rng_d1
-			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_d1 * SIZE_SLICE_1_D1 + idx_d1 + (blk_idx_d2 * SIZE_SLICE_1_D2 + ll) * size_d1) * size_e + (threadIdx.x + l)];
+			// Exception: Temp. version!: idx_e1 < rng_e1
+			sm_b[threadIdx.x][threadIdx.y + ll * 8] = dev_v2[(blk_idx_e1 * SIZE_SLICE_1_E1 + idx_e1 + (blk_idx_e2 * SIZE_SLICE_1_E2 + ll) * size_e1) * size_f + (threadIdx.x + l)];
 		}
 		__syncthreads();
 		//---------------------------------------------------------------------------------------------------
@@ -590,18 +631,18 @@ int size_internal)
 		// Part: Generalized Threads
 		for (int ll = 0; ll < SIZE_INT_UNIT_1 - internal_upperbound; ll++)
 		{
-			temp_bv[0] = sm_b[ll][idx_d1 + 0];
-			temp_bv[1] = sm_b[ll][idx_d1 + 8];
-			temp_bv[2] = sm_b[ll][idx_d1 + 16];
-			temp_bv[3] = sm_b[ll][idx_d1 + 24];
-			temp_bv[4] = sm_b[ll][idx_d1 + 32];
-			temp_bv[5] = sm_b[ll][idx_d1 + 40];
-			temp_bv[6] = sm_b[ll][idx_d1 + 48];
-			temp_bv[7] = sm_b[ll][idx_d1 + 56];
+			temp_bv[0] = sm_b[ll][idx_e1 + 0];
+			temp_bv[1] = sm_b[ll][idx_e1 + 8];
+			temp_bv[2] = sm_b[ll][idx_e1 + 16];
+			temp_bv[3] = sm_b[ll][idx_e1 + 24];
+			temp_bv[4] = sm_b[ll][idx_e1 + 32];
+			temp_bv[5] = sm_b[ll][idx_e1 + 40];
+			temp_bv[6] = sm_b[ll][idx_e1 + 48];
+			temp_bv[7] = sm_b[ll][idx_e1 + 56];
 
 			for (int xx = 0; xx < 4; xx++) // (1)
 			{
-				temp_av = sm_a[ll][idx_a + (idx_c) * SIZE_SLICE_1_A + (xx * 16)];
+				temp_av = sm_a[ll][idx_a + (idx_c + (idx_d) * SIZE_SLICE_1_C) * SIZE_SLICE_1_A + (xx * 16)];
 
 				reg_tile[0][xx] += temp_av * temp_bv[0];
 				reg_tile[1][xx] += temp_av * temp_bv[1];
@@ -620,12 +661,12 @@ int size_internal)
 	// Store Results (Registers) to Global Memory
 	// Part: Generalized Threads
 	// Part: Generalized Register-Tiling
-	if (idx_a < rng_a && idx_c < rng_c && idx_d1 < rng_d1)
+	if (idx_a < rng_a && idx_c < rng_c && idx_d < rng_d && idx_e1 < rng_e1)
 	for (int i = 0; i < 8; i++)
 	{
 		for (int j = 0; j < 4; j++)
 		{
-			if(i < rng_d2 && j < rng_b)
+			if(i < rng_e2 && j < rng_b)
 			{
 			dev_t3[t3_base_thread + (i * stride_reg_y) + (j * stride_reg_x)] = reg_tile[i][j];
 			}
@@ -635,7 +676,7 @@ int size_internal)
 
 // written by tc_interface.tc_gen_code_interface_Header()
 extern "C"
-void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c, int size_e, float* t3, float* host_t2, float* host_v2, int cond_kernel_1, int opt_register_transpose)
+void sd_t_d2_fusion(int size_a, int size_e1, int size_e2, int size_b, int size_c, int size_d, int size_f, float* t3, float* host_t2, float* host_v2, int cond_kernel_1, int opt_register_transpose)
 {
 	int num_thread_blocks_kernel_1;
 
@@ -644,20 +685,20 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 	float* dev_v2;
 
 
-	num_thread_blocks_kernel_1 = CEIL(size_a, SIZE_SLICE_1_A) * CEIL(size_d1, SIZE_SLICE_1_D1) * CEIL(size_d2, SIZE_SLICE_1_D2) * CEIL(size_b, SIZE_SLICE_1_B) * CEIL(size_c, SIZE_SLICE_1_C);
+	num_thread_blocks_kernel_1 = CEIL(size_a, SIZE_SLICE_1_A) * CEIL(size_e1, SIZE_SLICE_1_E1) * CEIL(size_e2, SIZE_SLICE_1_E2) * CEIL(size_b, SIZE_SLICE_1_B) * CEIL(size_c, SIZE_SLICE_1_C) * CEIL(size_d, SIZE_SLICE_1_D);
 	// cudaMalloc()
-	cudaMalloc((void**) &dev_t3, sizeof(float) * size_a * size_d1 * size_d2 * size_b * size_c);
-	cudaMalloc((void**) &dev_t2, sizeof(float) * size_e * size_c * size_b * size_a);
-	cudaMalloc((void**) &dev_v2, sizeof(float) * size_d2 * size_d1 * size_e);
+	cudaMalloc((void**) &dev_t3, sizeof(float) * size_a * size_e1 * size_e2 * size_b * size_c * size_d);
+	cudaMalloc((void**) &dev_t2, sizeof(float) * size_f * size_d * size_c * size_b * size_a);
+	cudaMalloc((void**) &dev_v2, sizeof(float) * size_e2 * size_e1 * size_f);
 
 	// cudaMemcpy()
-	cudaMemcpy(dev_t3, t3, sizeof(float) * size_a * size_d1 * size_d2 * size_b * size_c, cudaMemcpyHostToDevice);
-	cudaMemcpy(dev_t2, host_t2, sizeof(float) * size_e * size_c * size_b * size_a, cudaMemcpyHostToDevice);
-	cudaMemcpy(dev_v2, host_v2, sizeof(float) * size_d2 * size_d1 * size_e, cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_t3, t3, sizeof(float) * size_a * size_e1 * size_e2 * size_b * size_c * size_d, cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_t2, host_t2, sizeof(float) * size_f * size_d * size_c * size_b * size_a, cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_v2, host_v2, sizeof(float) * size_e2 * size_e1 * size_f, cudaMemcpyHostToDevice);
 
 	// Related to Kernels
 	// There are 1 Basic Kernels
-	long long int tmp_operations = (long long int)(size_a * size_d1 * size_d2 * size_b * size_c) * size_e;
+	long long int tmp_operations = (long long int)(size_a * size_e1 * size_e2 * size_b * size_c * size_d) * size_f;
 	printf ("========================================= fusedKernels =============================================\n");
 	printf ("		Grid Size  : %6d (1D)\n", num_thread_blocks_kernel_1);
 	printf ("		Block-size : %2d, %2d (2D)\n", SIZE_TB_1_X, SIZE_TB_1_Y);
@@ -669,17 +710,18 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 	dim3 blocksize_1(SIZE_TB_1_X, SIZE_TB_1_Y);
 
 	int stride_output_a = 1;
-	int stride_output_d1 = stride_output_a * size_a;
-	int stride_output_d2 = stride_output_d1 * size_d1;
-	int stride_output_b = stride_output_d2 * size_d2;
+	int stride_output_e1 = stride_output_a * size_a;
+	int stride_output_e2 = stride_output_e1 * size_e1;
+	int stride_output_b = stride_output_e2 * size_e2;
 	int stride_output_c = stride_output_b * size_b;
+	int stride_output_d = stride_output_c * size_c;
 
 	int stride_reg_x_1 = stride_output_b;
-	int stride_reg_y_1 = stride_output_d2;
+	int stride_reg_y_1 = stride_output_e2;
 
-	int size_internal = size_e;
+	int size_internal = size_f;
 
-	int stride_int_t2 = size_a * size_b * size_c;
+	int stride_int_t2 = size_a * size_b * size_c * size_d;
 	int stride_int_v2 = 1;
 
 	 cudaEvent_t start, stop;
@@ -688,40 +730,40 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 	if (i==9)cudaEventRecord(start);
 	// Decision Tree for Kernel Types
 	// No Chance to Utilize the Register Transpose
-	if (size_a % SIZE_SLICE_1_A == 0 && size_d1 % SIZE_SLICE_1_D1 == 0 && size_d2 % SIZE_SLICE_1_D2 == 0 && size_b % SIZE_SLICE_1_B == 0 && size_c % SIZE_SLICE_1_C == 0)
+	if (size_a % SIZE_SLICE_1_A == 0 && size_e1 % SIZE_SLICE_1_E1 == 0 && size_e2 % SIZE_SLICE_1_E2 == 0 && size_b % SIZE_SLICE_1_B == 0 && size_c % SIZE_SLICE_1_C == 0 && size_d % SIZE_SLICE_1_D == 0)
 	{
 		// [2] Extenral Index: Full
-		if (size_e % SIZE_SLICE_1_E == 0)
+		if (size_f % SIZE_SLICE_1_F == 0)
 		{
 			// [3] Internal Index: Full
 			// >>> External: Full && Internal: Full
 			printf ("External: Full, Internal: Full\n");
-			kernel__1_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_d1, size_d2, size_b, size_c, size_e, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_d1, SIZE_SLICE_1_D1), CEIL(size_d2, SIZE_SLICE_1_D2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
+			kernel__1_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_e1, size_e2, size_b, size_c, size_d, size_f, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_e1, SIZE_SLICE_1_E1), CEIL(size_e2, SIZE_SLICE_1_E2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), CEIL(size_d, SIZE_SLICE_1_D), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
 		}
 		else
 		{
 			// [4] Internal Index: Partial
 			// >>> External: Full && Internal: Partial
 			printf ("External: Full, Internal: Partial\n");
-			kernel__2_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_d1, size_d2, size_b, size_c, size_e, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_d1, SIZE_SLICE_1_D1), CEIL(size_d2, SIZE_SLICE_1_D2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
+			kernel__2_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_e1, size_e2, size_b, size_c, size_d, size_f, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_e1, SIZE_SLICE_1_E1), CEIL(size_e2, SIZE_SLICE_1_E2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), CEIL(size_d, SIZE_SLICE_1_D), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
 		}
 	}
 	else
 	{
 		// [2] Extenral Index: Partial
-		if (size_e % SIZE_SLICE_1_E == 0)
+		if (size_f % SIZE_SLICE_1_F == 0)
 		{
 			// [3] Internal Index: Full
 			// >>> External: Partial && Internal: Full
 			printf ("External: Partial, Internal: Full\n");
-			kernel__3_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_d1, size_d2, size_b, size_c, size_e, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_d1, SIZE_SLICE_1_D1), CEIL(size_d2, SIZE_SLICE_1_D2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
+			kernel__3_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_e1, size_e2, size_b, size_c, size_d, size_f, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_e1, SIZE_SLICE_1_E1), CEIL(size_e2, SIZE_SLICE_1_E2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), CEIL(size_d, SIZE_SLICE_1_D), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
 		}
 		else
 		{
 			// [4] Internal Index: Partial
 			// >>> External: Partial && Internal: Partial
 			printf ("External: Partial, Internal: Partial\n");
-			kernel__4_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_d1, size_d2, size_b, size_c, size_e, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_d1, SIZE_SLICE_1_D1), CEIL(size_d2, SIZE_SLICE_1_D2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
+			kernel__4_1<<<gridsize_1, blocksize_1>>>(dev_t3, dev_t2, dev_v2, size_a, size_e1, size_e2, size_b, size_c, size_d, size_f, CEIL(size_a, SIZE_SLICE_1_A), CEIL(size_e1, SIZE_SLICE_1_E1), CEIL(size_e2, SIZE_SLICE_1_E2), CEIL(size_b, SIZE_SLICE_1_B), CEIL(size_c, SIZE_SLICE_1_C), CEIL(size_d, SIZE_SLICE_1_D), stride_int_t2, stride_int_v2, stride_reg_x_1, stride_reg_y_1, size_internal);
 		}
 	}
 
@@ -735,7 +777,7 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 
 	printf("Time of one iteration: %f milliseconds\n", milliseconds/100.);
 	// Copy the Result from Device to Host
-	cudaMemcpy(t3, dev_t3, sizeof(float) * (size_a * size_d1 * size_d2 * size_b * size_c), cudaMemcpyDeviceToHost);
+	cudaMemcpy(t3, dev_t3, sizeof(float) * (size_a * size_e1 * size_e2 * size_b * size_c * size_d), cudaMemcpyDeviceToHost);
 
 	// cudaFree()
 	cudaFree(dev_t3);	cudaFree(dev_t2);	cudaFree(dev_v2);
@@ -748,27 +790,27 @@ void sd_t_d2_fusion(int size_a, int size_d1, int size_d2, int size_b, int size_c
 // This is written by tc_interface.tc_gen_code_interface()
 // This Interface Should be Called to Run the Kernels
 extern "C"
-void sd_t_d2_fusion_(int size_a, int size_d, int size_b, int size_c, int size_e, float* t3, float* t2, float* v2, int cond_kernel_1, int opt_register_transpose)
+void sd_t_d2_fusion_(int size_a, int size_e, int size_b, int size_c, int size_d, int size_f, float* t3, float* t2, float* v2, int cond_kernel_1, int opt_register_transpose)
 {
 	// Pre-Processing for Split
 	// Based on Tile-Sizes and Problem-Size
 	// Currently, one index can be split into two indices
-	int size_d1;
-	int size_d2;
+	int size_e1;
+	int size_e2;
 
-	if (size_d % 16 == 0)
+	if (size_e % 8 == 0)
 	{
 		//
-		size_d1 = 16;
-		size_d2 = size_d / 16;
+		size_e1 = 8;
+		size_e2 = size_e / 8;
 	}
 	else
 	{
 		//
-		size_d1 = size_d;
-		size_d2 = 1;
+		size_e1 = size_e;
+		size_e2 = 1;
 	}
 
 	// Call An Application
-	sd_t_d2_fusion(size_a, size_d1, size_d2, size_b, size_c, size_e, t3, t2, v2, cond_kernel_1, opt_register_transpose);
+	sd_t_d2_fusion(size_a, size_e1, size_e2, size_b, size_c, size_d, size_f, t3, t2, v2, cond_kernel_1, opt_register_transpose);
 }
