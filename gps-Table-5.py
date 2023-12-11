@@ -190,11 +190,12 @@ if __name__ == "__main__":
                         switch_KroneckerProduct(True)
                         (total2, fastkron) = train(SKI, dataset, case.dataset, case.p)
                         torch.cuda.empty_cache()
-                        results[s] += str(case) + " & " + "%.2f"%(total1/total2) + "\n"
+                        num_gpus = torch.cuda.device_count()
+                        results[s] += str(case) + " & " + "%.2f"%(total1/total2) + "%.2f"%(total1/(total2/4)) "\n"
                         # print(, fastkron)
   
   print("\n\n\n\nTable 5")
   for gp,result in results.items():
     print("-------"+gp+"-------")
-    print("Dataset & P^N & Speedup 1 GPU &")
+    print(f"Dataset & P^N & Speedup 1 GPU & Speedup {torch.cuda.device_count()} GPUs")
     print(result)
