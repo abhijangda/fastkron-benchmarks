@@ -74,7 +74,7 @@ class FastKronEval:
     run_command('cmake ..')
 
   def build_kron(self):
-    run_command("make kron -j")
+    run_command("make benchmark -j")
 
   def run_kron(self, shape, GM, GK, LocalKrons, callnofuse=True):
     with Executor(self.fk_dir) as executor: 
@@ -85,7 +85,7 @@ class FastKronEval:
       self.build_kron()
       
       ld_path = "LD_LIBRARY_PATH="+self.fk_dir
-      kron = ld_path + " " + f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
+      kron = ld_path + " " + f"./benchmark -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
       if GM * GK != 1:
         kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons 2"
 
@@ -111,7 +111,7 @@ class FastKronEval:
       self.build_kron()
         
       ld_path = "LD_LIBRARY_PATH="+self.fk_dir + " DIST_COMM=NCCL"
-      kron = ld_path + " " + f"./kron -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
+      kron = ld_path + " " + f"./benchmark -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
       if GM * GK != 1:
         kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons 1"
 
