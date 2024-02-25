@@ -262,7 +262,7 @@ int main(int argc, char ** argv)
                                handle,
                                &planPref,
                                algo,
-                               CUTENSOR_JIT_MODE_NONE));
+                               CUTENSOR_JIT_MODE_DEFAULT));
 
     /**********************
      * Query workspace estimate

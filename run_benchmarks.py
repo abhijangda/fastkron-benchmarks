@@ -219,17 +219,17 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
   cutensorEval = CuTensorEval(fk_bench_dir)
 
   for shape in cases:
-    (wofuseflops, _, fuseflops, _) = (1,1,1,1) #fk_eval.run_kron(shape, 1, 1, 1)
-    (gpflops, gptime) = (1,1) #gpEval.run_kron(shape, 1, 1, 1)
-    (cogentflops, cogentime) = (1,1) #cogentEval.run_kron(shape)
+    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
+    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
+    (cogentflops, cogentime) = cogentEval.run_kron(shape)
     (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
 
     result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
     print("TFLOPs", result)
     resultsCSV += result + "\n"
 
-  # with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
-  #   f.write(resultsCSV)
+  with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
+    f.write(resultsCSV)
 
 def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   M = 16
