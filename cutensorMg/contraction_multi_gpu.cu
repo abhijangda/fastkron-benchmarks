@@ -146,12 +146,12 @@ int main(int argc, char** argv)
     std::unordered_map<int32_t, int32_t> deviceCount;
     deviceCount['m'] = gm;
     deviceCount['1'] = gk;
-    deviceCount['2'] = 1;
-    deviceCount['3'] = 1;
+    deviceCount['2'] = gm * gk;
+    deviceCount['3'] = gm * gk;
 
-    std::vector<int32_t> modesA {'m', '1', '3'};
-    std::vector<int32_t> modesB {'m', '1', '2'};
-    std::vector<int32_t> modesC {'2', '3'};
+    std::vector<int32_t> modesA {'m', '1', '2'};
+    std::vector<int32_t> modesB {'2', '3'};
+    std::vector<int32_t> modesC {'m', '3', '1'};
 
     cudaDataType_t kDataType = CUDA_R_32F;
     const int64_t kElementSize = 4;
