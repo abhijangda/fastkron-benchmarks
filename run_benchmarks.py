@@ -179,6 +179,27 @@ class CogentEval:
       print(o)
       return None
 
+class CuTensorEval:
+  def __init__(self, fk_bench_dir):
+    self.fk_bench_dir = fk_bench_dir
+  
+  def run_kron(self, shape):
+    with Executor(os.path.join(self.fk_bench_dir, "cutensor")):
+      o = run_command(f"make")
+      o = run_command(f"./contraction {shape.m} {shape.n} {shape.ps[0]} {shape.qs[0]}")
+      print(o)
+      return self.parse_output(shape, o)
+    
+  def parse_output(self, shape, output):
+    try:
+      ft = re.findall(r'([\d\.]+)', output)
+      f,t = ft[0], ft[1]
+      f,t = float(f),float(t)
+      return (f, t)
+    except:
+      print(output)
+      return None
+
 def run_single_gpu_large_M(fk_dir, fk_bench_dir):
   resultsCSV = ""
   M = 1024
@@ -188,24 +209,27 @@ def run_single_gpu_large_M(fk_dir, fk_bench_dir):
     M2 = M2/2
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
            Shape(M, 4, 16, 16),   
-           Shape(M2, 5, 16, 16),
-           Shape(M, 3, 32, 32),   Shape(M2, 4, 32, 32),
+           Shape(M, 5, 16, 16),
+           Shape(M, 3, 32, 32),   Shape(M, 4, 32, 32),
            Shape(M, 2, 64, 64),   Shape(M, 3, 64, 64),
            Shape(M, 2, 128, 128), Shape(M2, 3, 128, 128)]
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
+  cutensorEval = CuTensorEval(fk_bench_dir)
 
   for shape in cases:
-    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
-    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
-    (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}"
+    (wofuseflops, _, fuseflops, _) = (1,1,1,1) #fk_eval.run_kron(shape, 1, 1, 1)
+    (gpflops, gptime) = (1,1) #gpEval.run_kron(shape, 1, 1, 1)
+    (cogentflops, cogentime) = (1,1) #cogentEval.run_kron(shape)
+    (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
+
+    result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
     print("TFLOPs", result)
     resultsCSV += result + "\n"
 
-  with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
-    f.write(resultsCSV)
+  # with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
+  #   f.write(resultsCSV)
 
 def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   M = 16
@@ -218,15 +242,18 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
-  
-  floatResultsCSV = "P & N & FastKron & COGENT & GPyTorch\n"
-  doubleResultsCSV = "P & N & FastKron & COGENT & GPyTorch\n"
+  cutensorEval = CuTensorEval(fk_bench_dir)
+
+  floatResultsCSV = "P & N & FastKron & COGENT & GPyTorch & CuTensor\n"
+  doubleResultsCSV = "P & N & FastKron & COGENT & GPyTorch & CuTensor\n"
   for shape in cases:
     (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
     (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
     (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    floatResultsCSV += f"{shape.ps[0]} & {shape.n} & {fuseflops} & {cogentflops} & {gpflops}" + "\n"
-    doubleResultsCSV += f"{shape.ps[0]} & {shape.n} & {float(fuseflops)/2} & {float(cogentflops)/2} & {float(gpflops)/2}" + "\n"
+    (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
+
+    floatResultsCSV += f"{shape.ps[0]} & {shape.n} & {fuseflops} & {cogentflops} & {gpflops} & {cutensorflops}" + "\n"
+    doubleResultsCSV += f"{shape.ps[0]} & {shape.n} & {float(fuseflops)/2} & {float(cogentflops)/2} & {float(gpflops)/2} & {cutensorflops/2}" + "\n"
   
   with open(os.path.join(fk_bench_dir, "Table-3-float.csv"), "w") as f:
     f.write(floatResultsCSV)
