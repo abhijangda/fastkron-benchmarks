@@ -303,7 +303,8 @@ def run_real_world(fk_dir, fk_bench_dir):
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
   cogentEval = CogentEval(fk_bench_dir)
-  
+  cutensorEval = CuTensorEval(fk_bench_dir)
+
   resultsCSV = ""
   
   for shape in cases:
@@ -313,7 +314,9 @@ def run_real_world(fk_dir, fk_bench_dir):
       (cogentflops, cogentime) = (gpflops, gptime)
     else:
       (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops}" + "\n"
+    (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
+
+    resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}" + "\n"
   print("Results\n", resultsCSV)
   with open(os.path.join(fk_bench_dir, "real-world-benchmarks.csv"), "w") as f:
     f.write(resultsCSV)
