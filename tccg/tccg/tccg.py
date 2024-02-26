@@ -1423,3 +1423,5 @@ def main():
 
     os.chdir(workingDir)
 
+if __name__ == "__main__":
+    main()

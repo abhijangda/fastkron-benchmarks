@@ -200,35 +200,84 @@ class CuTensorEval:
       print(output)
       return None
 
-def run_single_gpu_large_M(fk_dir, fk_bench_dir):
+class TCCGEval:
+  def __init__(self, fk_bench_dir):
+    self.fk_bench_dir = fk_bench_dir
+    self.kron_matmul = "kron-matmul.tccg"
+
+  def write_kron_matmul(self, shape):
+    with open(f"{self.fk_bench_dir}/tccg/{self.kron_matmul}", "w") as f:
+      s = "C[m,c,a] = A[m,a,b] * B[b,c]\n"
+      s += f"m = {shape.m}\n"
+      s += f"a = {shape.ps[0]**(shape.n-1)}\n"
+      s += f"b = {shape.ps[0]}\n"
+      s += f"c = {shape.qs[0]}\n"
+      f.write(s)
+
+  def run_kron(self, shape):
+    with Executor(os.path.join(self.fk_bench_dir, "tccg")) as exe:
+      self.write_kron_matmul(shape)
+      run_command(f"rm -rf {exe.exec_dir}/tccg_implementations")
+      run_command(f"rm -f {exe.exec_dir}/tccg/tccg.db")
+      ld_library_path = f"LD_LIBRARY_PATH={exe.exec_dir}/hptt/lib:{exe.exec_dir}/tcl/lib:$LD_LIBRARY_PATH"
+      o = run_command(f"{ld_library_path} TCCG_ROOT=`pwd` python2 tccg/tccg.py --arch=avx2 --numThreads=96 --floatType=s kron-matmul.tccg --verbose")
+      return self.parse_output(shape, o)
+
+  def parse_output(self, shape, output):
+    try:
+      print(output)
+      f = [float(f) for f in re.findall(r"attained: ([\d\.]*) GFLOPS", output)]
+      f = max(f)
+      return (f, 0)
+    except Exception as e:
+      print(e)
+      return None
+
+def run_large_M(fk_dir, fk_bench_dir, device):
+  device = device.lower()
+  assert device.lower() in ["gpu", "cpu"]
   resultsCSV = ""
   M = 1024
   M2 = 320
-  if total_gpu_memory() <= 16*1024:
+  if device == "gpu" and total_gpu_memory() <= 16*1024:
     M = M/2
     M2 = M2/2
+  elif device == "cpu":
+    M = 1024
+    M2 = 128
+
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
            Shape(M, 4, 16, 16),   
            Shape(M, 5, 16, 16),
            Shape(M, 3, 32, 32),   Shape(M, 4, 32, 32),
            Shape(M, 2, 64, 64),   Shape(M, 3, 64, 64),
-           Shape(M, 2, 128, 128), Shape(M2, 3, 128, 128)]
+           Shape(M, 2, 128, 128), Shape(M2, 3, 128, 128)
+           ]
   fk_eval = FastKronEval(fk_dir)
   gpEval = GPyTorchEval()
-  cogentEval = CogentEval(fk_bench_dir)
-  cutensorEval = CuTensorEval(fk_bench_dir)
+
+  if device == "gpu":
+    cogentEval = CogentEval(fk_bench_dir)
+    cutensorEval = CuTensorEval(fk_bench_dir)
+  elif device == "cpu":
+    tccgEval = TCCGEval(fk_bench_dir)
 
   for shape in cases:
-    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
-    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
-    (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
+    result = f"{str(shape)}"
 
-    result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
+    if device == "gpu":
+      (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
+      (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
+      (cogentflops, cogentime) = cogentEval.run_kron(shape)
+      (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
+      result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
+    elif device == "cpu":
+      result += f" & {tccgEval.run_kron(shape)}"
+
     print("TFLOPs", result)
     resultsCSV += result + "\n"
 
-  with open(os.path.join(fk_bench_dir, "single-gpu-flops.csv"), "w") as f:
+  with open(os.path.join(fk_bench_dir, f"single-{device}-flops.csv"), "w") as f:
     f.write(resultsCSV)
 
 def run_single_gpu_small_M(fk_dir, fk_bench_dir):
@@ -369,13 +418,15 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
 
 def do_evaluation(fk_dir, fk_bench, bench):
   if bench == "Figure-9":
-    run_single_gpu_large_M(fk_dir, fk_bench)
+    run_large_M(fk_dir, fk_bench, "gpu")
   elif bench == "Table-3":
     run_single_gpu_small_M(fk_dir, fk_bench)
   elif bench == "Figure-11":
     run_multi_gpu(fk_dir, fk_bench)
   elif bench == "Figure-10":
     run_real_world(fk_dir, fk_bench)
+  elif bench == "CPU":
+    run_large_M(fk_dir, fk_bench, "cpu")
 
 if __name__ == "__main__":
   import argparse
@@ -386,7 +437,7 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
 
-  assert args.bench in ["Figure-9", "Table-3", "Figure-10", "Figure-11"]
+  assert args.bench in ["Figure-9", "Table-3", "Figure-10", "Figure-11", "CPU"]
   try:
     import gpytorch
   except:
