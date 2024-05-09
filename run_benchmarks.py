@@ -275,7 +275,6 @@ class TCCGEval:
 
   def parse_output(self, shape, output):
     try:
-      print(output)
       f = [float(f) for f in re.findall(r"attained: ([\d\.]*) GFLOPS", output)]
       f = max(f)
       return (f, 0)
@@ -291,23 +290,23 @@ def run_single_node(cases, csv, fk_dir, fk_bench_dir, device):
   if device == "cuda":
     cogentEval = CogentEval(fk_bench_dir)
     cutensorEval = CuTensorEval(fk_bench_dir)
-  elif device == "cpu":
+  elif device == "x86":
     tccgEval = TCCGEval(fk_bench_dir)
 
   for shape in cases:
     result = f"{str(shape)}"
-
+    (_, wofuseflops, _, fuseflops, _) = fk_eval.run_single_gpu(shape, "N", "N")
+    (gpflops, gptime) = gpEval.run_single_gpu(shape)
+    result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & "
     if device == "cuda":
-      (_, wofuseflops, _, fuseflops, _) = fk_eval.run_single_gpu(shape, "N", "N")
-      (gpflops, gptime) = gpEval.run_single_gpu(shape)
       if shape.ps[0] <= 4:
         (cogentflops, cogentime) = (gpflops, gptime)
       else:
         (cogentflops, cogentime) = cogentEval.run_kron(shape)
       (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
-      result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
-    elif device == "cpu":
-      result += f" & {tccgEval.run_kron(shape)}"
+      result += f"{cogentflops} & {cutensorflops}"
+    elif device == "x86":
+      result += f"{tccgEval.run_kron(shape)[0]}"
 
     print("TFLOPs", result)
     resultsCSV += result + "\n"
@@ -317,13 +316,13 @@ def run_single_node(cases, csv, fk_dir, fk_bench_dir, device):
 
 def run_large_M(fk_dir, fk_bench_dir, device):
   device = device.lower()
-  assert device.lower() in ["cuda", "cpu"]
+  assert device.lower() in ["cuda", "x86"]
   M = 1024
   M2 = 320
   if device == "cuda" and total_gpu_memory() <= 16*1024:
     M = M/2
     M2 = M2/2
-  elif device == "cpu":
+  elif device == "x86":
     M = 256
     M2 = 128
 
@@ -446,8 +445,8 @@ def do_evaluation(fk_dir, fk_bench, bench):
     run_multi_gpu(fk_dir, fk_bench)
   elif bench == "Figure-10":
     run_real_world(fk_dir, fk_bench, "cuda")
-  elif bench == "CPU":
-    run_large_M(fk_dir, fk_bench, "cpu")
+  elif bench == "x86":
+    run_large_M(fk_dir, fk_bench, "x86")
 
 if __name__ == "__main__":
   import argparse
@@ -458,7 +457,7 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
 
-  assert args.bench in ["Figure-9", "Table-3", "Figure-10", "Figure-11", "CPU"]
+  assert args.bench in ["Figure-9", "Table-3", "Figure-10", "Figure-11", "x86"]
   try:
     import gpytorch
   except:
