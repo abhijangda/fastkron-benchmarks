@@ -40,7 +40,7 @@ class TccgArgs:
         self.maxImplementations = 16
         self.maxImplementationsLoG = 1
         self.maxImplementationsTTGT = 1
-        self.compiler = "icpc"
+        self.compiler = "g++"
         self.blasLib = "-mkl"
         self.cudaLib = "-L${CUDA_ROOT}/lib64 -lcublas"
         self.cudaInclude = "-I${CUDA_ROOT}/include"
