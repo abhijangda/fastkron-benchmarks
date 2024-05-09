@@ -57,50 +57,85 @@ class Executor:
     os.chdir(self.org_dir)
 
 class FastKronEval:
-  def __init__(self, fk_dir):
+  def __init__(self, fk_dir, backend, mode, elemtype):
     self.fk_dir = fk_dir
     self.last_shape = None
+    self.backend = backend
+    self.tuningmode = mode
+    self.built = False
+    self.elemtype = elemtype
 
-  def gen_kernels(self, shape, distKernels):
-    run_command("python3 src/gen_tuner_kernels.py -distinct-factors " + \
-                str(shape.n) + " " + " ".join([f"{pq[0]},{pq[1]}" for pq in zip(shape.ps, shape.qs)]) + \
-                (" -dist-kernels " if distKernels else ""))
+  def gen_kernels(self, shape, opX, opF, distKernels):
+    if self.tuningmode == 'FullTune':
+      run_command("python3 src/gen_tuner_kernels.py -backend cuda -archs ampere volta -distinct-factors " + \
+                  str(shape.n) + " " + " ".join([f"{pq[0]},{pq[1]}" for pq in zip(shape.ps, shape.qs)]) + \
+                  " -opX " + opX + " -opF " + opF + \
+                  (" -dist-kernels " if distKernels else "") + \
+                  " -backend " + self.backend + " -types " + self.elemtype + " -opt-levels 3")
+    elif self.tuningmode == 'FastTune' or self.tuningmode == 'NoTune':
+      pass #run_command("cd build/ && make gen-single-gpu-kernels")
 
   def setup_cmake(self):
+    if self.built == True:
+      return
+    d = os.getcwd()
     if os.path.exists('build/'):
       shutil.rmtree('build/')
     os.mkdir('build/')
     os.chdir('build/')
-    run_command('cmake ..')
+    if self.backend == "cuda":
+      backend_flags = '-DCMAKE_CUDA_FLAGS="-Xptxas -v -O3" -DENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="70;80"'
+    elif self.backend == "x86":
+      backend_flags = "-DENABLE_X86=ON"
+    if self.tuningmode == "FullTune":
+      backend_flags += " -DFULL_TUNE=ON"
+    run_command('cmake .. ' + backend_flags)
+    os.chdir(d)
 
   def build_kron(self):
-    run_command("make benchmark -j")
+    run_command(f"cd build && make benchmark_{self.backend} -j")
 
-  def run_kron(self, shape, GM, GK, LocalKrons, callnofuse=True):
+  def run_kron(self, shape, GM, GK, LocalKrons, opX, opF, callnofuse=True):
+    kron = f"cd build && {'TUNE=0' if self.tuningmode=='NoTune' else ''} ./tests/benchmarks/benchmark_{self.backend} -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 10 -w {50 if self.tuningmode=='NoTune' else 20} -t {self.elemtype} --tune --opx {opX} --opf {opF}"
+    if GM * GK != 1:
+      kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons {LocalKrons}"
+    kron += " --backend " + self.backend
+
+    o = run_command(kron + " --fuse")
+    fused = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
+    fusedtime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
+    if shape.ps[0] <= 32 and shape.ps[0] == shape.qs[0]:
+      o = run_command(kron)
+      wofuse = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
+      wofusetime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
+    else:
+      wofuse = fused
+      wofusetime = fusedtime
+
+    if GM*GK == 1:
+      return (shape, float(wofuse), float(wofusetime), float(fused), float(fusedtime))
+    else:
+      return (shape, GM, GK, wofuse, fused)
+
+  def run_single_gpu(self, shape, opX, opF):
     with Executor(self.fk_dir) as executor: 
-      self.gen_kernels(shape, False)
+      if self.built == False:
+        self.setup_cmake()
+        self.gen_kernels(shape, opX, opF, False)
+        self.build_kron()
+        if self.tuningmode == 'FastTune' or self.tuningmode == 'NoTune':
+          self.built = True
+      return self.run_kron(shape, 1, 1, 1, opX, opF)
+  
+  def setup_multi_gpu(self, shape):
+    with Executor(self.fk_dir) as executor:
+      self.gen_kernels(shape, "N", "N", True)
       self.setup_cmake()
-      if GM*GK > 1:
-        run_command("make gen-multi-gpu-tests-kernel")
       self.build_kron()
-      
-      ld_path = "LD_LIBRARY_PATH="+self.fk_dir
-      kron = ld_path + " " + f"./benchmark -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 20 -w 10 -t float --tune"
-      if GM * GK != 1:
-        kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons 2"
-
-      o = run_command(kron + " --fuse")
-      fused = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
-      fusedtime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
-      if shape.ps[0] <= 32 and callnofuse:
-        o = run_command(kron)
-        wofuse = re.findall(r"GFLOPS\: ([\d\.]+)", o)[0]
-        wofusetime = re.findall(r"Time: ([\d\.]+) ms", o)[0]
-      else:
-        wofuse = fused
-        wofusetime = fusedtime
-
-      return (wofuse, wofusetime, fused, fusedtime)
+  
+  def run_multi_gpu(self, shape, GM, GK, LocalKrons):
+    with Executor(self.fk_dir) as executor:
+      return self.run_kron(shape, GM, GK, LocalKrons, "N", "N")
 
   def run_distal(self, shape, GM, GK, LocalKrons):
     with Executor(self.fk_dir) as executor:
@@ -129,20 +164,34 @@ class FastKronEval:
       return (wofuse, wofusetime, fused, fusedtime)
 
 class GPyTorchEval:
-  def __init__(self):
-    pass
-  def run_kron(self, shape, GM, GK, LocalKrons):
-    r = self._run_kron(shape, GM, GK, LocalKrons)
+  def __init__(self, backend, elemtype):
+    self.backend = backend
+    if elemtype == "float":
+      self.elemtype = torch.float
+    elif elemtype == "double":
+      self.elemtype = torch.double
+    elif elemtype == "half":
+      self.elemtype = torch.half
+    if self.backend == "x86" and "OMP_NUM_THREADS" in os.environ:
+      torch.set_num_threads(int(os.environ["OMP_NUM_THREADS"]))
+
+  def run_single_gpu(self, shape):
+    r = self._run_kron(shape)
     torch.cuda.empty_cache()
     return r
 
-  def _run_kron(self, shape, GM, GK, LocalKrons):
+  def _run_kron(self, shape):
     import gpytorch as gp
     import torch
     factors = []
     for p,q in zip(shape.ps, shape.qs):
-        factors += [torch.ones(p, q, dtype=float).cuda()]    
-    x = torch.ones(shape.m, shape.k, dtype=float).cuda()
+      f = torch.ones(p, q, dtype=self.elemtype)
+      if self.backend == 'cuda':
+        f = f.cuda()
+      factors += [f] 
+    x = torch.ones(shape.m, shape.k, dtype=self.elemtype)
+    if self.backend == 'cuda':
+      x = x.cuda()
     kp = gp.lazy.KroneckerProductLazyTensor(*factors)
     def run_case(r):
         t1 = time.time()
@@ -153,9 +202,9 @@ class GPyTorchEval:
         return (t2-t1)*1000/r
     
     run_case(10)
-    t = run_case(20)
+    t = min(run_case(5), run_case(5), run_case(5), run_case(5), run_case(5))
     flops = shape.flops()/(t/1e3)
-    return (flops/1e9, t)
+    return (flops/1e9,t)
 
 class CogentEval:
   def __init__(self, fk_bench_dir):
@@ -163,9 +212,10 @@ class CogentEval:
   
   def run_kron(self, shape):
     with Executor(os.path.join(self.fk_bench_dir, "TC-CGO2019/cogent/kron")) as exector:
-      o = run_command(f"python3 gen_kernels.py {shape.m} {shape.n} {shape.ps[0]}")
-      o = run_command(f'nvcc -O3 -std=c++11 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_70,code=sm_70 mains/main_{shape.n}_facs.c kernels/kernel_{shape.m}_{shape.n}_{shape.ps[0]}.cu -Xptxas "-v " -o run_temp')
-      o = run_command(f"./run_temp {shape.m} {shape.ps[0]}")
+      ps_0 = shape.ps[0]
+      o = run_command(f"python3 gen_kernels.py {shape.m} {shape.n} {ps_0}")
+      o = run_command(f'nvcc -O3 -std=c++11 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_70,code=sm_70 mains/main_{shape.n}_facs.c kernels/kernel_{shape.m}_{shape.n}_{ps_0}.cu -Xptxas "-v " -o run_temp')
+      o = run_command(f"./run_temp {shape.m} {ps_0}")
       return self.parse_output(shape, o)
 
   def parse_output(self, shape, output):
@@ -220,7 +270,7 @@ class TCCGEval:
       run_command(f"rm -rf {exe.exec_dir}/tccg_implementations")
       run_command(f"rm -f {exe.exec_dir}/tccg/tccg.db")
       ld_library_path = f"LD_LIBRARY_PATH={exe.exec_dir}/hptt/lib:{exe.exec_dir}/tcl/lib:$LD_LIBRARY_PATH"
-      o = run_command(f"{ld_library_path} TCCG_ROOT=`pwd` python2 tccg/tccg.py --arch=avx2 --numThreads=96 --floatType=s kron-matmul.tccg --verbose")
+      o = run_command(f"{ld_library_path} TCCG_ROOT=`pwd` python2 tccg/tccg.py --arch=avx2 --numThreads=$OMP_NUM_THREADS --floatType=s kron-matmul.tccg --verbose")
       return self.parse_output(shape, o)
 
   def parse_output(self, shape, output):
@@ -233,17 +283,48 @@ class TCCGEval:
       print(e)
       return None
 
+def run_single_node(cases, csv, fk_dir, fk_bench_dir, device):
+  resultsCSV = ""
+  fk_eval = FastKronEval(fk_dir, device, "FastTune", "float")
+  gpEval = GPyTorchEval(device, "float")
+
+  if device == "cuda":
+    cogentEval = CogentEval(fk_bench_dir)
+    cutensorEval = CuTensorEval(fk_bench_dir)
+  elif device == "cpu":
+    tccgEval = TCCGEval(fk_bench_dir)
+
+  for shape in cases:
+    result = f"{str(shape)}"
+
+    if device == "cuda":
+      (_, wofuseflops, _, fuseflops, _) = fk_eval.run_single_gpu(shape, "N", "N")
+      (gpflops, gptime) = gpEval.run_single_gpu(shape)
+      if shape.ps[0] <= 4:
+        (cogentflops, cogentime) = (gpflops, gptime)
+      else:
+        (cogentflops, cogentime) = cogentEval.run_kron(shape)
+      (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
+      result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
+    elif device == "cpu":
+      result += f" & {tccgEval.run_kron(shape)}"
+
+    print("TFLOPs", result)
+    resultsCSV += result + "\n"
+
+  with open(csv, "w") as f:
+    f.write(resultsCSV)
+
 def run_large_M(fk_dir, fk_bench_dir, device):
   device = device.lower()
-  assert device.lower() in ["gpu", "cpu"]
-  resultsCSV = ""
+  assert device.lower() in ["cuda", "cpu"]
   M = 1024
   M2 = 320
-  if device == "gpu" and total_gpu_memory() <= 16*1024:
+  if device == "cuda" and total_gpu_memory() <= 16*1024:
     M = M/2
     M2 = M2/2
   elif device == "cpu":
-    M = 1024
+    M = 256
     M2 = 128
 
   cases = [Shape(M, 5, 8, 8),     Shape(M, 6, 8, 8),
@@ -253,34 +334,10 @@ def run_large_M(fk_dir, fk_bench_dir, device):
            Shape(M, 2, 64, 64),   Shape(M, 3, 64, 64),
            Shape(M, 2, 128, 128), Shape(M2, 3, 128, 128)
            ]
-  fk_eval = FastKronEval(fk_dir)
-  gpEval = GPyTorchEval()
+  run_single_node(cases, os.path.join(fk_bench_dir, f"single-{device}-flops.csv"), 
+                  fk_dir, fk_bench_dir, device)
 
-  if device == "gpu":
-    cogentEval = CogentEval(fk_bench_dir)
-    cutensorEval = CuTensorEval(fk_bench_dir)
-  elif device == "cpu":
-    tccgEval = TCCGEval(fk_bench_dir)
-
-  for shape in cases:
-    result = f"{str(shape)}"
-
-    if device == "gpu":
-      (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
-      (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
-      (cogentflops, cogentime) = cogentEval.run_kron(shape)
-      (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
-      result = f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}"
-    elif device == "cpu":
-      result += f" & {tccgEval.run_kron(shape)}"
-
-    print("TFLOPs", result)
-    resultsCSV += result + "\n"
-
-  with open(os.path.join(fk_bench_dir, f"single-{device}-flops.csv"), "w") as f:
-    f.write(resultsCSV)
-
-def run_single_gpu_small_M(fk_dir, fk_bench_dir):
+def run_single_gpu_small_M(fk_dir, fk_bench_dir, device):
   M = 16
   if total_gpu_memory() <= 16*1024:
     M = M/2
@@ -288,29 +345,12 @@ def run_single_gpu_small_M(fk_dir, fk_bench_dir):
            Shape(M, 6, 16, 16),
            Shape(M, 5, 32, 32),
            Shape(M, 4, 64, 64)]
-  fk_eval = FastKronEval(fk_dir)
-  gpEval = GPyTorchEval()
-  cogentEval = CogentEval(fk_bench_dir)
-  cutensorEval = CuTensorEval(fk_bench_dir)
+  run_single_node(cases, os.path.join(fk_bench_dir, "Table-3-float.csv"), 
+                fk_dir, fk_bench_dir, device)
+  # with open(os.path.join(fk_bench_dir, "Table-3-double.csv"), "w") as f:
+  #   f.write(doubleResultsCSV)
 
-  floatResultsCSV = "P & N & FastKron & COGENT & GPyTorch & CuTensor\n"
-  doubleResultsCSV = "P & N & FastKron & COGENT & GPyTorch & CuTensor\n"
-  for shape in cases:
-    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1)
-    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
-    (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
-
-    floatResultsCSV += f"{shape.ps[0]} & {shape.n} & {fuseflops} & {cogentflops} & {gpflops} & {cutensorflops}" + "\n"
-    doubleResultsCSV += f"{shape.ps[0]} & {shape.n} & {float(fuseflops)/2} & {float(cogentflops)/2} & {float(gpflops)/2} & {cutensorflops/2}" + "\n"
-  
-  with open(os.path.join(fk_bench_dir, "Table-3-float.csv"), "w") as f:
-    f.write(floatResultsCSV)
-
-  with open(os.path.join(fk_bench_dir, "Table-3-double.csv"), "w") as f:
-    f.write(doubleResultsCSV)
-
-def run_real_world(fk_dir, fk_bench_dir):
+def run_real_world(fk_dir, fk_bench_dir, device):
   cases = [
            Shape(20, 7, 2, 2),
            Shape(20, 9, 2, 2),
@@ -349,27 +389,8 @@ def run_real_world(fk_dir, fk_bench_dir):
            Shape(16, 3, 64, 64),
            ]
 
-  fk_eval = FastKronEval(fk_dir)
-  gpEval = GPyTorchEval()
-  cogentEval = CogentEval(fk_bench_dir)
-  cutensorEval = CuTensorEval(fk_bench_dir)
-
-  resultsCSV = ""
-  
-  for shape in cases:
-    (wofuseflops, _, fuseflops, _) = fk_eval.run_kron(shape, 1, 1, 1, False)
-    (gpflops, gptime) = gpEval.run_kron(shape, 1, 1, 1)
-    if shape.ps[0] <= 4:
-      (cogentflops, cogentime) = (gpflops, gptime)
-    else:
-      (cogentflops, cogentime) = cogentEval.run_kron(shape)
-    (cutensorflops, cutensortime) = cutensorEval.run_kron(shape)
-
-    resultsCSV += f"{str(shape)} & {fuseflops} & {wofuseflops} & {gpflops} & {cogentflops} & {cutensorflops}" + "\n"
-  print("Results\n", resultsCSV)
-  with open(os.path.join(fk_bench_dir, "real-world-benchmarks.csv"), "w") as f:
-    f.write(resultsCSV)
-
+  run_single_node(cases, os.path.join(fk_bench_dir, "real-world-benchmarks.csv"), 
+                  fk_dir, fk_bench_dir, device)
 
 def run_multi_gpu(fk_dir, fk_bench_dir):
   cases = []
@@ -380,9 +401,8 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
     M_128 = M_128/2
   cases += [Shape(M_64, 4, 64, 64)]
   cases += [Shape(M_128, 4, 128, 128)]
-  
+  scaling = "strong"
   # run_command("make gen-multi-gpu-tests-kernel")
-  fk_eval = FastKronEval(fk_dir)
   resultsCSV64 = ""
   resultsCSV128 = ""
 
@@ -394,14 +414,15 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
   for shape in cases:
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
-    
-    for j,gpus in enumerate([2**i for i in range(0, int(math.log2(num_gpus))+1)]):
+    fk = FastKronEval(fk_dir, "cuda", "FullTune", "float")
+    fk.setup_multi_gpu(shape)
+    for j,gpus in enumerate([1, 2, 4, 8]):
       gm = GMs[j]
       gk = GKs[j]
-      shapeGM = Shape(shape.m * gpus, shape.n, shape.ps[0], shape.qs[0])
-      (_, _, fkflops, _) = fk_eval.run_kron(shapeGM, gm, gk, 1)
-      (_, _, distalflops, _) = fk_eval.run_distal(shapeGM, gm, gk, 1)
-      result = f"{str(shapeGM)} & {fkflops} & {distalflops}"
+      shapeGM = Shape(shape.m * (gpus if scaling == "weak" else 1), shape.n, shape.ps[0], shape.qs[0])
+      LocalKrons = shapeGM.n if gk == 1 else shapeGM.n - 2
+      (_, _, fkflops, _) = fk.run_multi_gpu(shapeGM, gm, gk, LocalKrons, "N", "N")      
+      result = f"{str(shapeGM)} & {fkflops}"
       print(result)
       if shape.ps[0]==64:
         resultsCSV64 += result + "\n"
@@ -418,13 +439,13 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
 
 def do_evaluation(fk_dir, fk_bench, bench):
   if bench == "Figure-9":
-    run_large_M(fk_dir, fk_bench, "gpu")
+    run_large_M(fk_dir, fk_bench, "cuda")
   elif bench == "Table-3":
-    run_single_gpu_small_M(fk_dir, fk_bench)
+    run_single_gpu_small_M(fk_dir, fk_bench, "cuda")
   elif bench == "Figure-11":
     run_multi_gpu(fk_dir, fk_bench)
   elif bench == "Figure-10":
-    run_real_world(fk_dir, fk_bench)
+    run_real_world(fk_dir, fk_bench, "cuda")
   elif bench == "CPU":
     run_large_M(fk_dir, fk_bench, "cpu")
 
