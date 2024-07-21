@@ -84,9 +84,9 @@ class FastKronEval:
     os.mkdir('build/')
     os.chdir('build/')
     if self.backend == "cuda":
-      backend_flags = '-DCMAKE_CUDA_FLAGS="-Xptxas -v -O3" -DENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="70;80"'
+      backend_flags = '-DCMAKE_CUDA_FLAGS="-Xptxas -v -O3" -DENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="70;80" -DENABLE_X86=OFF'
     elif self.backend == "x86":
-      backend_flags = "-DENABLE_X86=ON"
+      backend_flags = "-DENABLE_X86=ON -DENABLE_CUDA=OFF"
     if self.tuningmode == "FullTune":
       backend_flags += " -DFULL_TUNE=ON"
     run_command('cmake .. ' + backend_flags)
@@ -96,7 +96,7 @@ class FastKronEval:
     run_command(f"cd build && make benchmark_{self.backend} -j")
 
   def run_kron(self, shape, GM, GK, LocalKrons, opX, opF, callnofuse=True):
-    kron = f"cd build && {'TUNE=0' if self.tuningmode=='NoTune' else ''} ./tests/benchmarks/benchmark_{self.backend} -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 10 -w {50 if self.tuningmode=='NoTune' else 20} -t {self.elemtype} --tune --opx {opX} --opf {opF}"
+    kron = f"cd build && {'TUNE=0' if self.tuningmode=='NoTune' else ''} ./tests/benchmarks/benchmark_{self.backend} -m {shape.m} -n {shape.n} -p {shape.ps[0]} -q {shape.qs[0]} -r 10 -w {50 if self.tuningmode=='NoTune' else 20} -t {self.elemtype} --tune --opx {opX} --opf {opF} --alpha 1 --beta 0"
     if GM * GK != 1:
       kron += f" --gpus {GM*GK} --GM {GM} --GK {GK} --gpuLocalKrons {LocalKrons}"
     kron += " --backend " + self.backend

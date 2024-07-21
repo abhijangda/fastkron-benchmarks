@@ -33,28 +33,40 @@ ind = np.arange(len(filtered_data))
 width = 0.1
 fk = 1
 fk_wo_fused = 2
-cogent = 3
-gp = 4
+gp = 3
+cogent = 4
+cutensor = 5
+tccg = 4
+is_x86 = 'x86' in csv_file
 
 # fig = plt.subplots(figsize =(10, 7))
 fk_flops = []
 fk_wo_fused_flops = []
 gp_flops = []
 cogent_flops = []
+cutensor_flops = []
+tccg_flops = []
 
 for row in filtered_data:
     print(row)
     fk_flops += [float(row[fk])/1e3]
     fk_wo_fused_flops += [float(row[fk_wo_fused])/1e3]
-    cogent_flops += [float(row[cogent])/1e3]
     gp_flops += [float(row[gp])/1e3]
+    if is_x86:
+        tccg_flops += [float(row[tccg])/1e3]
+    else:
+        cogent_flops += [float(row[cogent])/1e3]
+        cutensor_flops += [float(row[cutensor])/1e3]
     
 fig, ax2 = plt.subplots(1,1,sharex=True)
 
 p1 = ax2.plot(ind, gp_flops, color=colors[0], marker='o')
-p2 = ax2.plot(ind, cogent_flops, color=colors[1], marker='s')
-p4 = ax2.plot(ind, fk_wo_fused_flops, color=colors[3], marker='d')
-p3 = ax2.plot(ind, fk_flops, color=colors[2], marker='x')
+if is_x86:
+    p2 = ax2.plot(ind, tccg_flops, color=colors[1], marker='s')
+else:
+    p2 = ax2.plot(ind, cutensor_flops, color=colors[1], marker='h')
+p4 = ax2.plot(ind, fk_wo_fused_flops, color=colors[2], marker='d')
+p5 = ax2.plot(ind, fk_flops, color=colors[3], marker='x')
 
 # for i, f in enumerate(pytorchflops):
 #     ax2.text(i, f, "%.1f"%round(f, 1), color = 'black', fontsize='large', ha='center')
@@ -78,10 +90,13 @@ plt.ylabel('TFLOPS')
 
 plt.xlabel('Kron-Matmul of M=1024 and diverse P$^N$ values', fontsize='large')
 # plt.title('Contribution by the teams')
-plt.yticks([0,2,4,6,8,10,12,14])
+if is_x86:
+    pass# plt.yticks([0,0.25,0])
+else:
+    plt.yticks([0,2,4,6,8,10,12,14,16,18])
 plt.xticks(ind+width, (parse_p_n(row[0]) for row in filtered_data),rotation=45)
-plt.legend((p1[0], p2[0], p3[0], p4[0]), ('GPyTorch', 'COGENT', 'FastKron', 'FastKron-wo-Fuse'),
-            loc='upper left', fontsize='large', bbox_to_anchor=(0.0, 1.05),
+plt.legend((p1[0], p2[0], p4[0], p5[0]), ('GPyTorch', 'cuTensor' if not is_x86 else 'TCCG', 'FastKron-wo-Fuse', 'FastKron'),
+            loc='upper left', fontsize='large', bbox_to_anchor=(0.1, 1.27),
             ncol=2,columnspacing=1,handlelength=1.7)
 
 FIGURES_DIR = "./"
@@ -93,5 +108,5 @@ fig.subplots_adjust(bottom=0.1)
 fig.set_size_inches(5.5, 3)
 
 # ax.set_xticks([])
-fig.savefig(FIGURES_DIR+pdf_file,bbox_inches='tight',pad_inches=0)
+fig.savefig(FIGURES_DIR+pdf_file.replace('pdf','png'),bbox_inches='tight',pad_inches=0)
 plt.show()
