@@ -278,7 +278,9 @@ class TCCGEval:
       run_command(f"rm -rf {exe.exec_dir}/tccg_implementations")
       run_command(f"rm -f {exe.exec_dir}/tccg/tccg.db")
       ld_library_path = f"LD_LIBRARY_PATH={exe.exec_dir}/hptt/lib:{exe.exec_dir}/tcl/lib:$LD_LIBRARY_PATH"
-      o = run_command(f"{ld_library_path} TCCG_ROOT=`pwd` python2 tccg/tccg.py --arch=avx2 --numThreads=$OMP_NUM_THREADS --floatType=s kron-matmul.tccg --verbose")
+      if "OMP_NUM_THREADS" not in os.environ:
+        assert False, "OMP_NUM_THREADS not in environment"
+      o = run_command(f"{ld_library_path} TCCG_ROOT=`pwd` python2 tccg/tccg.py --arch=avx2 --numThreads={threads} --floatType=s kron-matmul.tccg --verbose")
       return self.parse_output(shape, o)
 
   def parse_output(self, shape, output):
