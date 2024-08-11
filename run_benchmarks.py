@@ -57,17 +57,22 @@ class Executor:
     os.chdir(self.org_dir)
 
 class FastKronEval:
-  def __init__(self, fk_dir, backend, mode, elemtype):
+  def __init__(self, fk_dir, backend, mode, elemtype, multi_gpu=False):
     self.fk_dir = fk_dir
     self.last_shape = None
     self.backend = backend
     self.tuningmode = mode
     self.built = False
     self.elemtype = elemtype
+    self.multi_gpu = multi_gpu
 
   def gen_kernels(self, shape, opX, opF, distKernels):
     if self.tuningmode == 'FullTune':
-      run_command("python3 src/gen_tuner_kernels.py -backend cuda -archs ampere volta -distinct-factors " + \
+      if torch.cuda.get_device_properties(0).major >= 8:
+        arch = "ampere" 
+      elif torch.cuda.get_device_properties(0).major <= 7:
+        arch = "volta"
+      run_command(f"python3 src/gen_tuner_kernels.py -backend cuda -archs {arch} -distinct-factors " + \
                   str(shape.n) + " " + " ".join([f"{pq[0]},{pq[1]}" for pq in zip(shape.ps, shape.qs)]) + \
                   " -opX " + opX + " -opF " + opF + \
                   (" -dist-kernels " if distKernels else "") + \
@@ -83,8 +88,11 @@ class FastKronEval:
       shutil.rmtree('build/')
     os.mkdir('build/')
     os.chdir('build/')
+    import torch
     if self.backend == "cuda":
-      backend_flags = '-DCMAKE_CUDA_FLAGS="-Xptxas -v -O3" -DENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="70;80" -DENABLE_X86=OFF'
+      backend_flags = f'-DENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="{torch.cuda.get_device_properties(0).major*10}" -DENABLE_X86=OFF'
+      if self.multi_gpu:
+        backend_flags += f' -DENABLE_MULTI_GPU=ON'
     elif self.backend == "x86":
       backend_flags = "-DENABLE_X86=ON -DENABLE_CUDA=OFF"
     if self.tuningmode == "FullTune":
@@ -115,7 +123,7 @@ class FastKronEval:
     if GM*GK == 1:
       return (shape, float(wofuse), float(wofusetime), float(fused), float(fusedtime))
     else:
-      return (shape, GM, GK, wofuse, fused)
+      return (shape, float(wofuse), float(wofusetime), float(fused), float(fusedtime))
 
   def run_single_gpu(self, shape, opX, opF):
     with Executor(self.fk_dir) as executor: 
@@ -400,7 +408,7 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
     M_128 = M_128/2
   cases += [Shape(M_64, 4, 64, 64)]
   cases += [Shape(M_128, 4, 128, 128)]
-  scaling = "strong"
+  scaling = "weak"
   # run_command("make gen-multi-gpu-tests-kernel")
   resultsCSV64 = ""
   resultsCSV128 = ""
@@ -413,14 +421,14 @@ def run_multi_gpu(fk_dir, fk_bench_dir):
   for shape in cases:
     GMs = [1, 2, 2, 4, 4]
     GKs = [1, 1, 2, 2, 4]
-    fk = FastKronEval(fk_dir, "cuda", "FullTune", "float")
+    fk = FastKronEval(fk_dir, "cuda", "FullTune", "float", multi_gpu=True)
     fk.setup_multi_gpu(shape)
     for j,gpus in enumerate([1, 2, 4, 8]):
       gm = GMs[j]
       gk = GKs[j]
       shapeGM = Shape(shape.m * (gpus if scaling == "weak" else 1), shape.n, shape.ps[0], shape.qs[0])
       LocalKrons = shapeGM.n if gk == 1 else shapeGM.n - 2
-      (_, _, fkflops, _) = fk.run_multi_gpu(shapeGM, gm, gk, LocalKrons, "N", "N")      
+      (_, _, _, fkflops, _) = fk.run_multi_gpu(shapeGM, gm, gk, LocalKrons)      
       result = f"{str(shapeGM)} & {fkflops}"
       print(result)
       if shape.ps[0]==64:
